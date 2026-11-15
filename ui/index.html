@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007 -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>repotier — Local Git Worktree &amp; Branch Manager</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-hover: #334155;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand {
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    select, input[type="text"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.9rem;
+    }
+    button {
+      background: var(--surface-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { border-color: var(--accent); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button.primary { background: #0284c7; border-color: #0284c7; }
+    button.danger { background: #b91c1c; border-color: #b91c1c; }
+    .nav-tabs { display: flex; gap: 8px; align-items: center; }
+    .tab-btn.active { background: var(--accent); color: #0f172a; font-weight: 600; }
+    main { max-width: 1180px; margin: 20px auto; padding: 0 24px; }
+    .banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      background: rgba(245, 158, 11, 0.16);
+      border: 1px solid var(--warning);
+      color: #fde68a;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .card h2 { margin: 0 0 12px 0; font-size: 1.05rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--surface-hover);
+    }
+    .badge.main { background: rgba(56, 189, 248, 0.2); color: var(--accent); }
+    .badge.clean { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .badge.dirty { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .badge.missing { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .dropdown { position: relative; display: inline-block; }
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      min-width: 210px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      z-index: 30;
+      padding: 4px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+    }
+    .dropdown.open .dropdown-menu { display: block; }
+    .dropdown-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: transparent;
+      padding: 6px 10px;
+      border-radius: 4px;
+    }
+    .dropdown-item:hover:not(:disabled) { background: var(--surface-hover); }
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 480px;
+      padding: 20px;
+    }
+    .modal h3 { margin-top: 0; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .checkbox-row.highlight { color: var(--warning); font-weight: 600; }
+    .error-box {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: #fecaca;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+    }
+    .hidden { display: none !important; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand-bar">
+      <span class="brand">repotier</span>
+      <select id="repoSelect" aria-label="Select Repository"></select>
+    </div>
+    <div class="nav-tabs">
+      <button id="tabWorkspace" class="tab-btn active" onclick="switchTab('workspace')">Workspace</button>
+      <button id="tabSettings" class="tab-btn" onclick="switchTab('settings')">Settings</button>
+      <button id="refreshBtn" onclick="refreshAll()">&#x21bb; Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="warningBanner" class="banner hidden">
+      <span id="warningText">Repository folder is no longer present or reachable</span>
+      <button onclick="dismissBanner()">Dismiss</button>
+    </div>
+
+    <div id="emptyState" class="card hidden">
+      <h2>No Active Git Repositories Cached</h2>
+      <p>Run <code class="mono">repotier</code> inside any local Git repository or linked worktree to register it and open the dashboard.</p>
+    </div>
+
+    <section id="workspaceView">
+      <div class="card">
+        <h2>Worktrees</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Worktree Path</th>
+              <th>Branch / HEAD</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="worktreesBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Local Branches</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Branch Name</th>
+              <th>Current Upstream</th>
+              <th>Tracking</th>
+              <th>Checked-Out Worktree</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="branchesBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="settingsView" class="hidden">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;">Cached Repositories</h2>
+          <button onclick="pruneMissingRepos()">Prune Unreachable</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Path</th>
+              <th>Status</th>
+              <th>Last Seen</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cachedReposBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;">Editor Binary Overrides</h2>
+          <button class="primary" onclick="saveEditorOverrides()">Save Overrides</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Editor</th>
+              <th>Auto-Detected Path</th>
+              <th>Override Path</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="editorsBody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Daemon Info</h2>
+        <p id="daemonInfoText" class="mono">Loading daemon info...</p>
+        <button class="danger" onclick="shutdownDaemon()">Shutdown Daemon</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Worktree Removal Modal -->
+  <div id="worktreeModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Remove Linked Worktree</h3>
+      <p class="mono" id="wtModalPath"></p>
+      <div id="wtBranchRow" class="checkbox-row">
+        <input type="checkbox" id="wtDeleteBranch" onchange="toggleWtForceBranch()">
+        <label for="wtDeleteBranch" id="wtDeleteBranchLabel">Also delete local branch</label>
+      </div>
+      <div id="wtForceBranchRow" class="checkbox-row" style="margin-left:20px;">
+        <input type="checkbox" id="wtForceBranch" disabled>
+        <label for="wtForceBranch">Force delete unmerged branch (-D)</label>
+      </div>
+      <div id="wtForceWorktreeRow" class="checkbox-row">
+        <input type="checkbox" id="wtForceWorktree">
+        <label for="wtForceWorktree">Force remove worktree (--force)</label>
+      </div>
+      <div id="wtModalError" class="error-box hidden"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button onclick="closeWorktreeModal()">Cancel</button>
+        <button id="wtForceRetryBtn" class="danger hidden" onclick="retryForceDeleteBranchFromWT()">Force Delete Branch (-D)</button>
+        <button id="wtConfirmBtn" class="danger" onclick="submitWorktreeRemove()">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Branch Deletion Modal -->
+  <div id="branchModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Delete Local Branch</h3>
+      <p class="mono" id="brModalName"></p>
+      <div class="checkbox-row">
+        <input type="checkbox" id="brForceDelete">
+        <label for="brForceDelete">Force delete (-D)</label>
+      </div>
+      <div id="brModalError" class="error-box hidden"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+        <button onclick="closeBranchModal()">Cancel</button>
+        <button id="brConfirmBtn" class="danger" onclick="submitBranchDelete(false)">Delete Branch</button>
+        <button id="brForceRetryBtn" class="danger hidden" onclick="submitBranchDelete(true)">Force Delete Branch (-D)</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allRepos = [];
+    let activeRepo = "";
+    let editors = [];
+    let currentDetails = { worktrees: [], branches: [], remote_refs: [] };
+    let modalWT = null;
+    let modalBranch = "";
+
+    function showBanner(msg) {
+      document.getElementById('warningText').textContent = msg;
+      document.getElementById('warningBanner').classList.remove('hidden');
+    }
+    function dismissBanner() {
+      document.getElementById('warningBanner').classList.add('hidden');
+    }
+
+    function switchTab(tab) {
+      const isWS = tab === 'workspace';
+      document.getElementById('tabWorkspace').classList.toggle('active', isWS);
+      document.getElementById('tabSettings').classList.toggle('active', !isWS);
+      document.getElementById('workspaceView').classList.toggle('hidden', !isWS && allRepos.some(r => r.exists));
+      document.getElementById('settingsView').classList.toggle('hidden', isWS);
+      if (isWS) {
+        updateEmptyVsWorkspace();
+      } else {
+        document.getElementById('emptyState').classList.add('hidden');
+      }
+    }
+
+    function updateEmptyVsWorkspace() {
+      const hasValid = allRepos.some(r => r.exists);
+      const isSettings = document.getElementById('tabSettings').classList.contains('active');
+      if (isSettings) return;
+      document.getElementById('emptyState').classList.toggle('hidden', hasValid);
+      document.getElementById('workspaceView').classList.toggle('hidden', !hasValid);
+    }
+
+    async function loadInitial() {
+      const params = new URLSearchParams(window.location.search);
+      const requestedRepo = params.get('repo') || '';
+      await Promise.all([fetchHealth(), fetchEditors(), fetchRepos(requestedRepo)]);
+      if (activeRepo) {
+        await fetchRepoDetails(activeRepo);
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all([fetchHealth(), fetchEditors(), fetchRepos(activeRepo)]);
+      if (activeRepo) {
+        await fetchRepoDetails(activeRepo);
+      }
+    }
+
+    async function fetchHealth() {
+      try {
+        const res = await fetch('/api/health');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('daemonInfoText').textContent =
+          `Version: ${data.version} | PID: ${data.pid} | Address: 127.0.0.1:${data.port}`;
+      } catch (_) {}
+    }
+
+    async function fetchEditors() {
+      const res = await fetch('/api/editors');
+      if (!res.ok) return;
+      const data = await res.json();
+      editors = data.editors || [];
+      renderSettingsEditors();
+    }
+
+    async function fetchRepos(preferredPath) {
+      const res = await fetch('/api/repos');
+      if (!res.ok) return;
+      const data = await res.json();
+      allRepos = data.repos || [];
+      const validRepos = allRepos.filter(r => r.exists);
+
+      if (preferredPath) {
+        const matched = allRepos.find(r => r.path === preferredPath);
+        if (!matched || !matched.exists) {
+          showBanner('Repository folder is no longer present or reachable');
+          activeRepo = validRepos.length > 0 ? validRepos[0].path : '';
+          syncURLRepo(activeRepo);
+        } else {
+          activeRepo = matched.path;
+        }
+      } else if (!activeRepo || !validRepos.some(r => r.path === activeRepo)) {
+        activeRepo = validRepos.length > 0 ? validRepos[0].path : '';
+        syncURLRepo(activeRepo);
+      }
+
+      renderRepoSelect(validRepos);
+      renderCachedRepos();
+      updateEmptyVsWorkspace();
+    }
+
+    function syncURLRepo(repoPath) {
+      const url = new URL(window.location.href);
+      if (repoPath) {
+        url.searchParams.set('repo', repoPath);
+      } else {
+        url.searchParams.delete('repo');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+
+    function renderRepoSelect(validRepos) {
+      const sel = document.getElementById('repoSelect');
+      sel.innerHTML = '';
+      if (validRepos.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No active repositories';
+        sel.appendChild(opt);
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
+      for (const r of validRepos) {
+        const opt = document.createElement('option');
+        opt.value = r.path;
+        opt.textContent = `${r.name} (${r.path})`;
+        if (r.path === activeRepo) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.onchange = async () => {
+        activeRepo = sel.value;
+        syncURLRepo(activeRepo);
+        await fetchRepoDetails(activeRepo);
+      };
+    }
+
+    async function fetchRepoDetails(repoPath) {
+      if (!repoPath) return;
+      const res = await fetch('/api/repo/details?path=' + encodeURIComponent(repoPath));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.exists) {
+        showBanner('Repository folder is no longer present or reachable');
+        await fetchRepos('');
+        return;
+      }
+      currentDetails = data;
+      renderWorktrees();
+      renderBranches();
+    }
+
+    function renderWorktrees() {
+      const tbody = document.getElementById('worktreesBody');
+      tbody.innerHTML = '';
+      for (const wt of (currentDetails.worktrees || [])) {
+        const tr = document.createElement('tr');
+        const branchLabel = wt.detached ? `detached @ ${wt.head}` : wt.branch;
+        const roleBadge = wt.is_main ? '<span class="badge main">Main</span>' : '<span class="badge">Linked</span>';
+        const statusBadge = wt.dirty_count > 0
+          ? `<span class="badge dirty">${wt.dirty_count} dirty</span>`
+          : '<span class="badge clean">Clean</span>';
+
+        const tdActions = document.createElement('td');
+        tdActions.style.display = 'flex';
+        tdActions.style.gap = '8px';
+
+        // Open in dropdown
+        const dd = document.createElement('div');
+        dd.className = 'dropdown';
+        const btnOpen = document.createElement('button');
+        btnOpen.textContent = 'Open in ▾';
+        btnOpen.onclick = (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.dropdown.open').forEach(el => { if (el !== dd) el.classList.remove('open'); });
+          dd.classList.toggle('open');
+        };
+        const menu = document.createElement('div');
+        menu.className = 'dropdown-menu';
+        for (const ed of editors) {
+          const item = document.createElement('button');
+          item.className = 'dropdown-item';
+          if (ed.available) {
+            item.textContent = ed.label;
+            item.onclick = () => { dd.classList.remove('open'); openWorktreeInEditor(ed.id, wt.path); };
+          } else {
+            item.textContent = `${ed.label} (Configure in Settings)`;
+            item.onclick = () => { dd.classList.remove('open'); switchTab('settings'); };
+          }
+          menu.appendChild(item);
+        }
+        dd.appendChild(btnOpen);
+        dd.appendChild(menu);
+        tdActions.appendChild(dd);
+
+        if (!wt.is_main) {
+          const btnRem = document.createElement('button');
+          btnRem.className = 'danger';
+          btnRem.textContent = 'Remove';
+          btnRem.onclick = () => openWorktreeModal(wt, false);
+          tdActions.appendChild(btnRem);
+        }
+
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(wt.path)}</td>
+          <td><span class="badge">${escapeHtml(branchLabel)}</span></td>
+          <td>${roleBadge}</td>
+          <td>${statusBadge}</td>
+        `;
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderBranches() {
+      const tbody = document.getElementById('branchesBody');
+      tbody.innerHTML = '';
+      const remotes = currentDetails.remote_refs || [];
+
+      for (const br of (currentDetails.branches || [])) {
+        const tr = document.createElement('tr');
+        let trackBadge = '—';
+        if (br.gone) {
+          trackBadge = '<span class="badge missing">gone</span>';
+        } else if (br.upstream) {
+          trackBadge = `<span class="badge">${br.ahead}↑ ${br.behind}↓</span>`;
+        }
+
+        const tdUp = document.createElement('td');
+        const sel = document.createElement('select');
+        const unsetOpt = document.createElement('option');
+        unsetOpt.value = '';
+        unsetOpt.textContent = '(Unset upstream)';
+        sel.appendChild(unsetOpt);
+        const optionsSet = new Set(remotes);
+        if (br.upstream) optionsSet.add(br.upstream);
+        for (const ref of optionsSet) {
+          const opt = document.createElement('option');
+          opt.value = ref;
+          opt.textContent = ref;
+          if (ref === br.upstream) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        sel.onchange = () => updateUpstream(br.name, sel.value);
+        tdUp.appendChild(sel);
+
+        const tdAct = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        if (br.is_main_wt) {
+          delBtn.disabled = true;
+          delBtn.title = 'Checked out in main repository directory';
+        } else if (br.checked_out_in) {
+          delBtn.className = 'danger';
+          delBtn.onclick = () => {
+            const wt = (currentDetails.worktrees || []).find(w => w.path === br.checked_out_in) || {
+              path: br.checked_out_in,
+              branch: br.name,
+              dirty_count: 0
+            };
+            openWorktreeModal(wt, true);
+          };
+        } else {
+          delBtn.className = 'danger';
+          delBtn.onclick = () => openBranchModal(br.name);
+        }
+        tdAct.appendChild(delBtn);
+
+        tr.innerHTML = `<td class="mono">${escapeHtml(br.name)}</td>`;
+        tr.appendChild(tdUp);
+        const tdTrack = document.createElement('td');
+        tdTrack.innerHTML = trackBadge;
+        tr.appendChild(tdTrack);
+        const tdWT = document.createElement('td');
+        tdWT.className = 'mono';
+        tdWT.textContent = br.checked_out_in || '—';
+        tr.appendChild(tdWT);
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function updateUpstream(branch, upstream) {
+      const res = await fetch('/api/branches/upstream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_path: activeRepo, branch, upstream })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showBanner(err.git_error || err.error || 'Failed to update upstream');
+      }
+      await fetchRepoDetails(activeRepo);
+    }
+
+    async function openWorktreeInEditor(editorId, worktreePath) {
+      const res = await fetch('/api/worktrees/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editor_id: editorId, worktree_path: worktreePath })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showBanner(err.error || 'Failed to launch editor');
+      }
+    }
+
+    function openWorktreeModal(wt, precheckDeleteBranch) {
+      modalWT = wt;
+      document.getElementById('wtModalPath').textContent = wt.path;
+      const hasBranch = Boolean(wt.branch);
+      document.getElementById('wtBranchRow').classList.toggle('hidden', !hasBranch);
+      document.getElementById('wtForceBranchRow').classList.toggle('hidden', !hasBranch);
+      document.getElementById('wtDeleteBranchLabel').textContent = `Also delete local branch (${wt.branch || ''})`;
+      document.getElementById('wtDeleteBranch').checked = hasBranch && Boolean(precheckDeleteBranch);
+      document.getElementById('wtForceBranch').checked = false;
+      document.getElementById('wtForceBranch').disabled = !document.getElementById('wtDeleteBranch').checked;
+      document.getElementById('wtForceWorktree').checked = wt.dirty_count > 0;
+      document.getElementById('wtForceWorktreeRow').classList.toggle('highlight', wt.dirty_count > 0);
+      document.getElementById('wtModalError').classList.add('hidden');
+      document.getElementById('wtForceRetryBtn').classList.add('hidden');
+      document.getElementById('wtConfirmBtn').classList.remove('hidden');
+      document.getElementById('worktreeModal').classList.add('open');
+    }
+
+    function toggleWtForceBranch() {
+      const checked = document.getElementById('wtDeleteBranch').checked;
+      const forceEl = document.getElementById('wtForceBranch');
+      forceEl.disabled = !checked;
+      if (!checked) forceEl.checked = false;
+    }
+
+    function closeWorktreeModal() {
+      document.getElementById('worktreeModal').classList.remove('open');
+      modalWT = null;
+    }
+
+    async function submitWorktreeRemove() {
+      if (!modalWT) return;
+      const res = await fetch('/api/worktrees', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo_path: activeRepo,
+          worktree_path: modalWT.path,
+          branch: modalWT.branch || '',
+          delete_branch: document.getElementById('wtDeleteBranch').checked,
+          force: document.getElementById('wtForceBranch').checked,
+          force_worktree: document.getElementById('wtForceWorktree').checked
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.requires_force) {
+        const errEl = document.getElementById('wtModalError');
+        errEl.textContent = data.git_error || 'Branch is not fully merged.';
+        errEl.classList.remove('hidden');
+        document.getElementById('wtConfirmBtn').classList.add('hidden');
+        document.getElementById('wtForceRetryBtn').classList.remove('hidden');
+        await fetchRepoDetails(activeRepo);
+        return;
+      }
+      if (!res.ok) {
+        const errEl = document.getElementById('wtModalError');
+        errEl.textContent = data.git_error || data.error || 'Failed to remove worktree';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      closeWorktreeModal();
+      await fetchRepoDetails(activeRepo);
+    }
+
+    async function retryForceDeleteBranchFromWT() {
+      if (!modalWT || !modalWT.branch) return;
+      const res = await fetch('/api/branches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_path: activeRepo, branch: modalWT.branch, force: true })
+      });
+      if (res.ok) {
+        closeWorktreeModal();
+        await fetchRepoDetails(activeRepo);
+      }
+    }
+
+    function openBranchModal(branchName) {
+      modalBranch = branchName;
+      document.getElementById('brModalName').textContent = branchName;
+      document.getElementById('brForceDelete').checked = false;
+      document.getElementById('brModalError').classList.add('hidden');
+      document.getElementById('brConfirmBtn').classList.remove('hidden');
+      document.getElementById('brForceRetryBtn').classList.add('hidden');
+      document.getElementById('branchModal').classList.add('open');
+    }
+
+    function closeBranchModal() {
+      document.getElementById('branchModal').classList.remove('open');
+      modalBranch = '';
+    }
+
+    async function submitBranchDelete(forceOverride) {
+      if (!modalBranch) return;
+      const force = forceOverride || document.getElementById('brForceDelete').checked;
+      const res = await fetch('/api/branches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_path: activeRepo, branch: modalBranch, force })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.requires_force) {
+        const errEl = document.getElementById('brModalError');
+        errEl.textContent = data.git_error || 'Branch is not fully merged.';
+        errEl.classList.remove('hidden');
+        document.getElementById('brConfirmBtn').classList.add('hidden');
+        document.getElementById('brForceRetryBtn').classList.remove('hidden');
+        return;
+      }
+      if (!res.ok) {
+        const errEl = document.getElementById('brModalError');
+        errEl.textContent = data.git_error || data.error || 'Failed to delete branch';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      closeBranchModal();
+      await fetchRepoDetails(activeRepo);
+    }
+
+    function renderCachedRepos() {
+      const tbody = document.getElementById('cachedReposBody');
+      tbody.innerHTML = '';
+      for (const r of allRepos) {
+        const tr = document.createElement('tr');
+        const statusBadge = r.exists
+          ? '<span class="badge clean">Active</span>'
+          : '<span class="badge missing">Unreachable</span>';
+        const tdAct = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'danger';
+        btn.textContent = 'Remove';
+        btn.onclick = () => removeCachedRepo(r.path);
+        tdAct.appendChild(btn);
+
+        tr.innerHTML = `
+          <td>${escapeHtml(r.name)}</td>
+          <td class="mono">${escapeHtml(r.path)}</td>
+          <td>${statusBadge}</td>
+          <td class="mono">${escapeHtml(r.last_seen)}</td>
+        `;
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function removeCachedRepo(path) {
+      await fetch('/api/repos', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+      if (activeRepo === path) activeRepo = '';
+      await fetchRepos('');
+      if (activeRepo) await fetchRepoDetails(activeRepo);
+    }
+
+    async function pruneMissingRepos() {
+      await fetch('/api/repos', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prune_missing: true })
+      });
+      await fetchRepos(activeRepo);
+    }
+
+    function renderSettingsEditors() {
+      const tbody = document.getElementById('editorsBody');
+      tbody.innerHTML = '';
+      for (const ed of editors) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(ed.label)}</strong></td>
+          <td class="mono">${escapeHtml(ed.detected_path || 'Not detected')}</td>
+          <td><input type="text" data-editor-id="${escapeHtml(ed.id)}" value="${escapeHtml(ed.override_path || '')}" placeholder="/custom/path/to/${escapeHtml(ed.id)}" style="width:100%"></td>
+          <td><button onclick="openWorktreeInEditor('${escapeHtml(ed.id)}', activeRepo || '~')">Test Launch</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function saveEditorOverrides() {
+      const overrides = {};
+      document.querySelectorAll('input[data-editor-id]').forEach(inp => {
+        overrides[inp.getAttribute('data-editor-id')] = inp.value.trim();
+      });
+      const res = await fetch('/api/settings/editors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overrides })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showBanner(data.error || 'Failed to save editor overrides');
+        return;
+      }
+      editors = data.editors || editors;
+      renderSettingsEditors();
+      renderWorktrees();
+    }
+
+    async function shutdownDaemon() {
+      await fetch('/api/shutdown', { method: 'POST' });
+      document.getElementById('daemonInfoText').textContent = 'Daemon stopped.';
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    window.addEventListener('click', () => {
+      document.querySelectorAll('.dropdown.open').forEach(el => el.classList.remove('open'));
+    });
+    window.addEventListener('focus', () => refreshAll());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshAll();
+    });
+
+    loadInitial();
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+/repotier
+*.tmp
+*.corrupt
+*.lock
