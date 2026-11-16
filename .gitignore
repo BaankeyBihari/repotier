@@ -1,4 +1,6 @@
+repotier
 /repotier
 *.tmp
 *.corrupt
 *.lock
+coverage.out
