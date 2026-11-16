@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    ":automergeMinor",
+    ":automergeDigest"
+  ],
+  "enabledManagers": [
+    "gomod",
+    "github-actions",
+    "mise"
+  ],
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "description": "Group non-major updates across Go, mise tools, and GitHub Actions into a single weekly PR and automerge once CI passes",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch",
+      "automerge": true
+    }
+  ]
+}

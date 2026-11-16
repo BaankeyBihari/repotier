@@ -74,13 +74,17 @@ When `repotier daemon [--port <port>]` starts:
   - `hooks`: `pre-commit install`
 - **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, and `markdownlint-cli2` before commits.
 
-### GitHub Actions Pull Request & Release Workflows
+### GitHub Actions Pull Request, Release & Governance Configs
 
+- **Code Ownership, Security & Renovate (`CODEOWNERS`, `SECURITY.md`, `renovate.json`):**
+  - `.github/CODEOWNERS` assigns `* @BaankeyBihari` as global code owner.
+  - `SECURITY.md` documents the `127.0.0.1` loopback security boundary and Private Vulnerability Reporting.
+  - `renovate.json` tracks `gomod`, `mise`, and `github-actions` with weekly grouped minor/patch/digest automerge (`platformAutomerge: true`).
 - **PR Verification Workflow (`.github/workflows/pr.yml`):**
   - **Triggers:** `pull_request` targeting `main` (`permissions: contents: read`).
   - **Steps:** Runs `gofmt`, `go vet`, `golangci-lint`, `markdownlint-cli2`, `go test -timeout 15s ./cmd/repotier/...`, and `go build -o repotier ./cmd/repotier` (no tagging or release publishing).
 - **Build & Release Workflow (`.github/workflows/release.yml`):**
-  - **Triggers:** `push` to `main` and `workflow_dispatch` (`permissions: contents: write`).
+  - **Triggers:** `push` to `main` (filtered to `cmd/repotier/**`, `go.mod`, `.github/workflows/release.yml`) and `workflow_dispatch` (top-level `permissions: contents: read`, job-level `contents: write`).
 - **Pipeline Steps:**
   1. **Verify:** Setup `go-version: stable` (`1.24+` required for macOS 15+ Mach-O `LC_UUID` load command compatibility) and run `go vet ./cmd/repotier/...` and `go test -timeout 15s ./cmd/repotier/...`.
   2. **Auto-CalVer Tag Calculation:** Compute `YYYY.MM` in UTC, inspect existing `vYYYY.MM.*` Git tags, and increment the monthly release number `N` (starting at `1`, e.g., `VERSION=2026.11.1`, `TAG=v2026.11.1`).
