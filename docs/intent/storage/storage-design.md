@@ -72,12 +72,14 @@ The `STORAGE` segment manages all persistent local state on disk: the discovered
 ## Open Questions & Future Decisions
 
 ### Resolved
+
 1. ✅ **Editor ID Set:** Fixed to `agy`, `vscode`, `windsurf`, `intellij`, `subl`.
 2. ✅ **Tilde Expansion & `.app` Bundles in Overrides:** Expand `~/` before `os.Stat` and accept regular files or macOS `.app` directories.
 3. ✅ **Corrupt JSON Recovery:** Back up to `*.corrupt` and reset to defaults.
 4. ✅ **Deterministic Ordering:** `ListRepos()` sorts by `last_seen` descending, then `path` ascending.
 
 ### Deferred
+
 1. Custom XDG base directory environment variable overrides (`XDG_CACHE_HOME`, `XDG_CONFIG_HOME`) vs. `~/.cache` and `~/.config` under `os.UserHomeDir()`.
 
 ## References

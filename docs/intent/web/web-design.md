@@ -20,6 +20,7 @@ The `WEB` segment owns the localhost HTTP server (`127.0.0.1:<port>`), cross-ori
 ## REST API Contract
 
 All non-`2xx` and non-`409` error responses return a standard JSON error envelope:
+
 ```json
 {
   "error": "human-readable message",
@@ -59,6 +60,7 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 2. First matching binary in `exec.LookPath`.
 3. First existing path in `Extra Probe Paths` (`~/` expanded to user home directory).
 4. On `darwin`, first existing `/Applications/<AppName>.app` directory.
+
 - **Launch Execution:** If the resolved target on `darwin` is a directory ending in `.app` (from step 1, 3, or 4), launch via `open -a "<resolved_path_or_app>" "<worktree_path>"`; otherwise execute directly as `<resolved_path> "<worktree_path>"`.
 - **Non-Blocking Reap:** Editor processes are started with `cmd.Start()` and reaped asynchronously in a background goroutine (`go func() { _ = cmd.Wait() }()`) so the HTTP handler returns immediately and no zombie processes accumulate.
 
@@ -121,12 +123,14 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 ## Open Questions & Future Decisions
 
 ### Resolved
+
 1. ✅ **Origin Guard Scope:** Rejects non-`GET`/`HEAD` requests when `Origin` is present and not `http://127.0.0.1:<port>` or `http://localhost:<port>`.
 2. ✅ **Standard JSON Error Envelope:** `{"error":"...","git_error":"..."}` on `400`/`403`/`404`/`500`.
 3. ✅ **macOS `.app` Override Launch:** Any resolved path ending in `.app` on `darwin` launches via `open -a`.
 4. ✅ **In-Session Active Repo Removal:** Re-fetch `/api/repos`, fall back to first valid repo or empty state, and update URL via `history.replaceState`.
 
 ### Deferred
+
 1. None.
 
 ## References

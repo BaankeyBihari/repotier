@@ -37,6 +37,7 @@ The `CLI` segment owns command-line invocation (`repotier`), pre-run repository 
 ## Daemon Lifecycle & Runtime Files
 
 When `repotier daemon [--port <port>]` starts:
+
 1. Validate `--port` is in `0..65535` (reject `< 0` or `> 65535` with exit code `2`).
 2. Ensure `~/.cache/repotier/` exists (`0755`).
 3. Bind TCP listener strictly to `127.0.0.1:<port>` before writing state files so port conflicts fail immediately without clobbering an active daemon's files. Read the actual bound port via `listener.Addr().(*net.TCPAddr).Port`.
@@ -62,6 +63,7 @@ When `repotier daemon [--port <port>]` starts:
 `repotier` uses **CalVer (`YYYY.MM.N`)** versioning (e.g., `2026.11.1`, or Git tag `v2026.11.1`), injected at build time via `-ldflags "-X main.Version=..."` (defaulting to `2026.11.0` for local dev builds). All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
 
 ### Build, Clean, Lint & Pre-Commit Tooling
+
 - **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"`, `"npm:markdownlint-cli2" = "latest"` (matching `go 1.27` in `go.mod`).
 - **`mise.toml` Tasks:**
   - `build`: `go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier`
@@ -73,6 +75,7 @@ When `repotier daemon [--port <port>]` starts:
 - **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, and `markdownlint-cli2` before commits.
 
 ### GitHub Actions Pull Request & Release Workflows
+
 - **PR Verification Workflow (`.github/workflows/pr.yml`):**
   - **Triggers:** `pull_request` targeting `main` (`permissions: contents: read`).
   - **Steps:** Runs `gofmt`, `go vet`, `golangci-lint`, `markdownlint-cli2`, `go test -timeout 15s ./cmd/repotier/...`, and `go build -o repotier ./cmd/repotier` (no tagging or release publishing).
@@ -85,6 +88,7 @@ When `repotier daemon [--port <port>]` starts:
   4. **Publish Release:** Create tag and GitHub Release via `gh release create "v${VERSION}" dist/repotier_*.tar.gz dist/checksums.txt --title "v${VERSION}" --generate-notes`.
 
 ### Self-Update Flow (`repotier update`)
+
 1. Probe whether daemon is currently healthy on active port (`wasRunning`).
 2. Query `GET https://api.github.com/repos/BaankeyBihari/repotier/releases/latest` (`10s` timeout, sending `Accept: application/vnd.github+json` and `User-Agent: repotier/<version>` headers). If the endpoint returns `404 Not Found` (no releases published yet), print confirmation and exit `0`. Compare `tag_name` against build-time `Version` by stripping any leading `v` prefix and comparing the parsed 3-integer tuple `(YYYY, MM, N)` so `2026.11.10 > 2026.11.2`.
 3. If `tag_name` is not newer than `Version`, print confirmation and exit `0`.
@@ -103,12 +107,14 @@ When `repotier daemon [--port <port>]` starts:
 ## Open Questions & Future Decisions
 
 ### Resolved
+
 1. ✅ **Canonical Binary & Directory Name:** Use `repotier` (`~/.cache/repotier/`, `~/.config/repotier/`).
 2. ✅ **Shutdown When Unreachable:** Clean up stale `daemon.pid`/`daemon.port`, print `"Daemon is not running"`, and exit `0`.
 3. ✅ **Bare & Linked Worktree Discovery:** Strip trailing `/.git` when `filepath.Base(commonDir) == ".git"`, or retain `commonDir` when `--is-bare-repository` is `true`.
 4. ✅ **Port Validation:** Allow `0..65535` on `daemon --port`; reject invalid ports or unknown flags/subcommands with exit code `2`.
 
 ### Deferred
+
 1. Cross-filesystem fallback if `os.Executable()` resides on a read-only mount during `repotier update`.
 
 ## References

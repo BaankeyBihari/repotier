@@ -13,14 +13,17 @@
 ## Installation
 
 ### From GitHub Releases
+
 Download the latest `repotier_<os>_<arch>.tar.gz` archive for macOS (`darwin_arm64`, `darwin_amd64`) or Linux (`linux_amd64`, `linux_arm64`) from [GitHub Releases](https://github.com/BaankeyBihari/repotier/releases) and place `repotier` on your `PATH`.
 
 ### With `go install`
+
 ```bash
 go install github.com/BaankeyBihari/repotier/cmd/repotier@latest
 ```
 
 ### From Source (via `mise`)
+
 ```bash
 mise run build     # builds ./repotier
 mise run install   # installs into $GOPATH/bin or ~/go/bin
@@ -48,6 +51,7 @@ repotier update               # Self-update from GitHub Releases and restart dae
 ## Architecture & Design Docs
 
 This repository follows **Linked-Intent Development (LID)**:
+
 - High-Level Design: [docs/high-level-design.md](docs/high-level-design.md)
 - Component LLDs & EARS Specs:
   - `CLI`: [cli-design.md](docs/intent/cli/cli-design.md) · [cli-specs.md](docs/intent/cli/cli-specs.md)
