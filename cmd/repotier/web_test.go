@@ -301,6 +301,7 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",
+		"local-no-remote",
 		"/api/repo/remote-items",
 		"Pull Requests",
 		"Issues",
