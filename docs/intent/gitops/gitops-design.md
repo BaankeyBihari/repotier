@@ -76,12 +76,14 @@ The `GITOPS` segment encapsulates all interactions with the local `git` CLI (`os
 ## Open Questions & Future Decisions
 
 ### Resolved
+
 1. ✅ **No Hardcoded Branch Protection:** Only `is_main_wt == true` blocks branch deletion.
 2. ✅ **Dirty Worktree Error:** Distinct `ErrWorktreeDirty` when `git worktree remove` fails without `--force`.
 3. ✅ **Detached HEAD Worktree Deletion:** Ignore `delete_branch: true` when `branch == ""` (`worktree_removed: true, branch_deleted: false`).
 4. ✅ **Subprocess Timeout & `[gone]` Parsing:** Bound `git` commands with `10s` timeout; parse `[gone]` as `ahead: 0, behind: 0, gone: true`.
 
 ### Deferred
+
 1. Handling pruned/stale worktree administrative entries (`git worktree prune`) when a linked worktree folder was manually deleted from Finder/terminal.
 
 ## References

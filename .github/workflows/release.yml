@@ -19,10 +19,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
+      - name: Setup mise tools (Go 1.27)
+        uses: jdx/mise-action@v2
 
       - name: Verify formatting, vet, and tests
         run: |

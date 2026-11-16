@@ -1,0 +1,33 @@
+# @spec CLI-BUILD-001
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup mise tools (Go 1.27, golangci-lint v2, markdownlint-cli2)
+        uses: jdx/mise-action@v2
+
+      - name: Run Go fmt, vet, golangci-lint, and markdownlint-cli2
+        run: |
+          test -z "$(gofmt -l cmd/repotier)"
+          go vet ./cmd/repotier/...
+          golangci-lint run ./cmd/repotier/...
+          markdownlint-cli2 "**/*.md" "#.claude/**"
+
+      - name: Run tests
+        run: go test -timeout 15s ./cmd/repotier/...
+
+      - name: Build binary (no release)
+        run: go build -trimpath -o repotier ./cmd/repotier

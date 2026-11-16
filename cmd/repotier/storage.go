@@ -326,7 +326,7 @@ func (s *Store) SaveEditorOverrides(overrides map[string]string) error {
 			return fmt.Errorf("override path for %s does not exist: %w", id, err)
 		}
 		if info.IsDir() {
-			if !(goos == "darwin" && strings.HasSuffix(expanded, ".app")) {
+			if goos != "darwin" || !strings.HasSuffix(expanded, ".app") {
 				return fmt.Errorf("override path for %s is a directory", id)
 			}
 		}

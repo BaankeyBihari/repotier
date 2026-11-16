@@ -334,7 +334,7 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing mise.toml: %v", err)
 	}
 	miseText := string(miseBytes)
-	for _, want := range []string{`go = "1.27"`, "golangci-lint", "pre-commit", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
+	for _, want := range []string{`go = "1.27"`, "golangci-lint", "pre-commit", "markdownlint-cli2", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
 		if !strings.Contains(miseText, want) {
 			t.Fatalf("mise.toml missing %q", want)
 		}
@@ -346,12 +346,29 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 	}
 
 	pcBytes, err := os.ReadFile(filepath.Join(repoRoot, ".pre-commit-config.yaml"))
-	if err != nil || !strings.Contains(string(pcBytes), "golangci-lint") {
+	if err != nil || !strings.Contains(string(pcBytes), "golangci-lint") || !strings.Contains(string(pcBytes), "markdownlint-cli2") {
 		t.Fatalf("missing or incomplete .pre-commit-config.yaml: %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(repoRoot, ".golangci.yml")); err != nil {
 		t.Fatalf("missing .golangci.yml: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, ".markdownlint-cli2.yaml")); err != nil {
+		t.Fatalf("missing .markdownlint-cli2.yaml: %v", err)
+	}
+
+	prBytes, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "pr.yml"))
+	if err != nil {
+		t.Fatalf("missing .github/workflows/pr.yml: %v", err)
+	}
+	prText := string(prBytes)
+	for _, want := range []string{"pull_request", "golangci-lint", "markdownlint-cli2", "go build"} {
+		if !strings.Contains(prText, want) {
+			t.Fatalf(".github/workflows/pr.yml missing %q", want)
+		}
+	}
+	if strings.Contains(prText, "gh release create") {
+		t.Fatalf(".github/workflows/pr.yml must not create releases")
 	}
 
 	wfBytes, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
