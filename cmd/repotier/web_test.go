@@ -307,6 +307,7 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"/api/worktrees/open",
 		"/api/branches/upstream",
 		"/api/repo/fetch",
+		"git fetch --all --prune",
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",
