@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // @spec WEB-UI-001
@@ -119,6 +122,9 @@ type Server struct {
 	Version    string
 	ShutdownCh chan struct{}
 	EditorEnv  *EditorResolver
+	Logger     *slog.Logger
+	LevelVar   *slog.LevelVar
+	LogWriter  *rotatingWriter
 }
 
 func NewServer(store *Store, port int, version string) *Server {
@@ -151,18 +157,25 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // @spec WEB-SEC-001, WEB-SEC-002
 func (s *Server) localhostGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			origin := strings.TrimSpace(r.Header.Get("Origin"))
 			if origin != "" {
 				expected1 := fmt.Sprintf("http://127.0.0.1:%d", s.Port)
 				expected2 := fmt.Sprintf("http://localhost:%d", s.Port)
 				if origin != expected1 && origin != expected2 {
+					if s.Logger != nil {
+						s.Logger.Warn("blocked cross-origin request", "method", r.Method, "path", r.URL.Path, "origin", origin)
+					}
 					writeJSONError(w, http.StatusForbidden, "forbidden origin", "")
 					return
 				}
 			}
 		}
 		next.ServeHTTP(w, r)
+		if s.Logger != nil {
+			s.Logger.Debug("http request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(start).String())
+		}
 	})
 }
 
@@ -181,11 +194,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/worktrees", s.handleDeleteWorktree)
 	mux.HandleFunc("GET /api/editors", s.handleGetEditors)
 	mux.HandleFunc("PUT /api/settings/editors", s.handlePutEditors)
+	mux.HandleFunc("GET /api/settings/logging", s.handleGetLogging)
+	mux.HandleFunc("PUT /api/settings/logging", s.handlePutLogging)
+	mux.HandleFunc("GET /api/logs", s.handleGetLogs)
 	mux.HandleFunc("POST /api/worktrees/open", s.handleOpenWorktree)
 	return s.localhostGuard(mux)
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		writeJSONError(w, http.StatusNotFound, "not found", "")
@@ -450,6 +466,82 @@ func (s *Server) handlePutEditors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":  "ok",
 		"editors": s.ResolveEditors(cfg),
+	})
+}
+
+// @spec WEB-API-015
+func (s *Server) handleGetLogging(w http.ResponseWriter, r *http.Request) {
+	cfg, err := s.Store.LoadConfig()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error(), "")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"log_path": filepath.Join(s.Store.CacheDir, "daemon.log"),
+		"logging":  cfg.Logging,
+	})
+}
+
+// @spec WEB-API-015
+func (s *Server) handlePutLogging(w http.ResponseWriter, r *http.Request) {
+	var req LoggingConfig
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON body", "")
+		return
+	}
+	if err := s.Store.SaveLoggingConfig(req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error(), "")
+		return
+	}
+	cfg, _ := s.Store.LoadConfig()
+	if s.LevelVar != nil {
+		s.LevelVar.Set(parseSlogLevel(cfg.Logging.Level))
+	}
+	if s.LogWriter != nil {
+		s.LogWriter.SetLimits(cfg.Logging.MaxSizeMB, cfg.Logging.MaxBackups)
+	}
+	if s.Logger != nil {
+		s.Logger.Info("logging configuration updated", "level", cfg.Logging.Level, "max_size_mb", cfg.Logging.MaxSizeMB, "max_backups", cfg.Logging.MaxBackups)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "ok",
+		"log_path": filepath.Join(s.Store.CacheDir, "daemon.log"),
+		"logging":  cfg.Logging,
+	})
+}
+
+// @spec WEB-API-015
+func (s *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	n := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("lines")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
+			n = parsed
+		}
+	}
+	if n > 500 {
+		n = 500
+	}
+
+	logPath := filepath.Join(s.Store.CacheDir, "daemon.log")
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeJSON(w, http.StatusOK, map[string]any{"path": logPath, "lines": []string{}})
+			return
+		}
+		writeJSONError(w, http.StatusInternalServerError, err.Error(), "")
+		return
+	}
+
+	rawLines := strings.Split(strings.TrimRight(string(data), "\r\n"), "\n")
+	if len(rawLines) == 1 && rawLines[0] == "" {
+		rawLines = []string{}
+	} else if len(rawLines) > n {
+		rawLines = rawLines[len(rawLines)-n:]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":  logPath,
+		"lines": rawLines,
 	})
 }
 

@@ -11,6 +11,7 @@
 
 - [x] **STORAGE-CFG-001**: When `LoadConfig()` reads `~/.config/repotier/config.json` and the file does not exist or omits fields, the storage layer shall return default `port: 45910` (also applied whenever stored `port <= 0` or `port > 65535`) and an `editor_overrides` map initialized with `""` for `agy`, `vscode`, `windsurf`, `intellij`, and `subl`.
 - [x] **STORAGE-CFG-002**: When `SaveEditorOverrides(overrides)` is called, the storage layer shall reject unknown editor IDs (outside `agy`, `vscode`, `windsurf`, `intellij`, `subl`), expand any leading `~/` on non-empty paths via `os.UserHomeDir()`, verify via `os.Stat` that each non-empty path exists as a regular file or (on `darwin`) a `.app` directory bundle, and persist the validated overrides to `~/.config/repotier/config.json`.
+- [x] **STORAGE-CFG-004**: When `LoadConfig()` runs, `STORAGE` shall default `logging` to `level: "info"`, `max_size_mb: 5`, and `max_backups: 3`, and when `SaveLoggingConfig(cfg)` is called, `STORAGE` shall validate `level` (`debug`, `info`, `warn`, `error`), `max_size_mb` (`1..500`), and `max_backups` (`0..20`) before persisting `~/.config/repotier/config.json`.
 
 ## Concurrency, Atomic Persistence & Corrupt Recovery
 

@@ -29,9 +29,16 @@ type RepoCacheFile struct {
 	Repos []CachedRepo `json:"repos"`
 }
 
+type LoggingConfig struct {
+	Level      string `json:"level"`
+	MaxSizeMB  int    `json:"max_size_mb"`
+	MaxBackups int    `json:"max_backups"`
+}
+
 type Config struct {
 	Port            int               `json:"port"`
 	EditorOverrides map[string]string `json:"editor_overrides"`
+	Logging         LoggingConfig     `json:"logging"`
 }
 
 type Store struct {
@@ -256,10 +263,24 @@ func defaultConfig() Config {
 	return Config{
 		Port:            DefaultPort,
 		EditorOverrides: overrides,
+		Logging: LoggingConfig{
+			Level:      "info",
+			MaxSizeMB:  5,
+			MaxBackups: 3,
+		},
 	}
 }
 
-// @spec STORAGE-CFG-001, STORAGE-LOCK-002
+func isValidLogLevel(lvl string) bool {
+	switch strings.ToLower(strings.TrimSpace(lvl)) {
+	case "debug", "info", "warn", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+// @spec STORAGE-CFG-001, STORAGE-CFG-004, STORAGE-LOCK-002
 func (s *Store) LoadConfig() (Config, error) {
 	lockPath := filepath.Join(s.ConfigDir, "config.lock")
 	cfgPath := filepath.Join(s.ConfigDir, "config.json")
@@ -286,6 +307,15 @@ func (s *Store) LoadConfig() (Config, error) {
 				cfg.EditorOverrides[id] = val
 			}
 		}
+		if isValidLogLevel(loaded.Logging.Level) {
+			cfg.Logging.Level = strings.ToLower(strings.TrimSpace(loaded.Logging.Level))
+		}
+		if loaded.Logging.MaxSizeMB >= 1 && loaded.Logging.MaxSizeMB <= 500 {
+			cfg.Logging.MaxSizeMB = loaded.Logging.MaxSizeMB
+		}
+		if loaded.Logging.MaxBackups >= 0 && loaded.Logging.MaxBackups <= 20 {
+			cfg.Logging.MaxBackups = loaded.Logging.MaxBackups
+		}
 		return nil
 	})
 	return cfg, err
@@ -296,6 +326,36 @@ func (s *Store) expandHome(p string) string {
 		return filepath.Join(s.HomeDir, strings.TrimPrefix(p, "~/"))
 	}
 	return p
+}
+
+// @spec STORAGE-CFG-004
+func (s *Store) SaveLoggingConfig(lc LoggingConfig) error {
+	lvl := strings.ToLower(strings.TrimSpace(lc.Level))
+	if !isValidLogLevel(lvl) {
+		return fmt.Errorf("invalid log level %q (must be debug, info, warn, or error)", lc.Level)
+	}
+	if lc.MaxSizeMB < 1 || lc.MaxSizeMB > 500 {
+		return fmt.Errorf("max_size_mb must be between 1 and 500")
+	}
+	if lc.MaxBackups < 0 || lc.MaxBackups > 20 {
+		return fmt.Errorf("max_backups must be between 0 and 20")
+	}
+
+	cfg, err := s.LoadConfig()
+	if err != nil {
+		return err
+	}
+	cfg.Logging = LoggingConfig{
+		Level:      lvl,
+		MaxSizeMB:  lc.MaxSizeMB,
+		MaxBackups: lc.MaxBackups,
+	}
+
+	lockPath := filepath.Join(s.ConfigDir, "config.lock")
+	cfgPath := filepath.Join(s.ConfigDir, "config.json")
+	return s.withLock(lockPath, func() error {
+		return writeJSONAtomic(cfgPath, cfg)
+	})
 }
 
 // @spec STORAGE-CFG-002

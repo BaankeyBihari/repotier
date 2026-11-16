@@ -42,6 +42,9 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 | `/api/worktrees` | `DELETE` | `{"repo_path":"...","worktree_path":"...","branch":"...","delete_branch":true,"force":false,"force_worktree":false}` | `{"worktree_removed":true,"branch_deleted":true}` or `409 Conflict` `{"worktree_removed":true,"branch_deleted":false,"requires_force":true,"git_error":"..."}` (`400` on dirty worktree without `force_worktree` or `is_main`) |
 | `/api/editors` | `GET` | — | `{"editors":[{"id":"agy","label":"Antigravity IDE","detected_path":"...","override_path":"...","available":true},...]}` |
 | `/api/settings/editors` | `PUT` | `{"overrides":{"agy":"/custom/path",...}}` | `{"status":"ok","editors":[...]}` (`400 Bad Request` if any non-empty override path fails validation) |
+| `/api/settings/logging` | `GET` | — | `{"log_path":"...","logging":{"level":"info","max_size_mb":5,"max_backups":3}}` |
+| `/api/settings/logging` | `PUT` | `{"level":"debug","max_size_mb":10,"max_backups":5}` | `{"status":"ok","log_path":"...","logging":{...}}` (`400 Bad Request` on invalid level/bounds; updates active daemon logger live) |
+| `/api/logs` | `GET` | `?lines=100` | `{"path":"...","lines":["..."]}` (last `N` lines, max `500`, of `daemon.log`) |
 | `/api/worktrees/open` | `POST` | `{"editor_id":"vscode","worktree_path":"..."}` | `{"status":"launched"}` (resolves empty or `"~"` `worktree_path` to `os.UserHomeDir()`; `400`/`404` if editor unavailable or target path missing) |
 
 ## Editor Auto-Detection & Process Launch
@@ -122,6 +125,7 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
   - **Cached Repositories Table:** Shows all cached entries (`Active` vs. `Unreachable` badges), `last_seen`, per-row **Remove**, and bulk **Prune Unreachable** button.
   - **Editor Overrides:** Shows all 5 editors, `detected_path`, editable `override_path` input, **Save** button (`PUT /api/settings/editors`), and **Test Launch** button (opens current selected repo or user home directory).
   - **Daemon Info:** Displays version, PID, `127.0.0.1:<port>`, and **Shutdown Daemon** button (`POST /api/shutdown`).
+  - **Daemon Logging:** Displays `log_path` (`~/.cache/repotier/daemon.log`), **Log Level** select (`debug`, `info`, `warn`, `error`), **Max Size (MB)**, **Max Backups**, **Save** button (`PUT /api/settings/logging`), and **View Last 100 Lines** button opening a log viewer modal (`GET /api/logs?lines=100`).
 
 ## Decisions & Alternatives
 

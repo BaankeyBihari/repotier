@@ -45,8 +45,9 @@ When `repotier daemon [--port <port>]` starts:
 2. Ensure `~/.cache/repotier/` exists (`0755`).
 3. Bind TCP listener strictly to `127.0.0.1:<port>` before writing state files so port conflicts fail immediately without clobbering an active daemon's files. Read the actual bound port via `listener.Addr().(*net.TCPAddr).Port`.
 4. Write current PID to `~/.cache/repotier/daemon.pid` and actual bound port to `~/.cache/repotier/daemon.port`.
-5. Listen for `SIGINT`, `SIGTERM`, or internal shutdown channel triggered by `POST /api/shutdown`.
-6. On shutdown trigger, invoke `http.Server.Shutdown(ctx)` with a `5s` timeout, then remove `daemon.pid` and `daemon.port`.
+5. Initialize structured `log/slog` logger with `slog.LevelVar` and a mutex-guarded `rotatingWriter` writing to `~/.cache/repotier/daemon.log` (rotating `.1`..`.<max_backups>` via `os.Rename` when file size reaches `max_size_mb * 1024 * 1024`).
+6. Listen for `SIGINT`, `SIGTERM`, or internal shutdown channel triggered by `POST /api/shutdown`.
+7. On shutdown trigger, invoke `http.Server.Shutdown(ctx)` with a `5s` timeout, close the rotating log writer, and remove `daemon.pid` and `daemon.port`.
 
 ## Shutdown Command (`repotier shutdown`)
 

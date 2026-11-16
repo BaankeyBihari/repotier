@@ -510,3 +510,34 @@ func TestCLIHelpAndVersionCommands(t *testing.T) {
 		}
 	}
 }
+
+// @spec CLI-DAEMON-005
+func TestCLIRotatingLogger(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "daemon.log")
+	rw, err := newRotatingWriter(logPath, 64, 2)
+	if err != nil {
+		t.Fatalf("newRotatingWriter failed: %v", err)
+	}
+	defer rw.Close()
+
+	chunk := bytes.Repeat([]byte("a"), 50)
+	chunk = append(chunk, '\n')
+	for i := 0; i < 4; i++ {
+		if _, err := rw.Write(chunk); err != nil {
+			t.Fatalf("write %d failed: %v", i, err)
+		}
+	}
+
+	if _, err := os.Stat(logPath); err != nil {
+		t.Fatalf("expected active daemon.log: %v", err)
+	}
+	if _, err := os.Stat(logPath + ".1"); err != nil {
+		t.Fatalf("expected rotated daemon.log.1: %v", err)
+	}
+	if _, err := os.Stat(logPath + ".2"); err != nil {
+		t.Fatalf("expected rotated daemon.log.2: %v", err)
+	}
+	if _, err := os.Stat(logPath + ".3"); !os.IsNotExist(err) {
+		t.Fatalf("expected daemon.log.3 NOT to exist when max_backups=2")
+	}
+}

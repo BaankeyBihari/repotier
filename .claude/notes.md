@@ -38,3 +38,7 @@ DEFERRED: None.
 WHY: Developers need read-only visibility into open remote Issues and PRs alongside their local worktrees without leaving the dashboard, plus clear indication when a repo has multiple remotes vs. is local-only. Using `gh` CLI (`gh issue list` / `gh pr list`) with a stdlib GitHub REST API fallback reuses local auth without storing tokens or adding SDK dependencies.
 ALTERNATIVES: Multi-repo accordion view; storing GitHub PATs in `config.json`; `google/go-github` dependency.
 DEFERRED: Mutating issues/PRs from the dashboard (explicitly read-only).
+## 2026-11-16 - Daemon Rotating Logger (stdlib log/slog + rotatingWriter) & Settings UI
+WHY: Detached `repotier daemon` redirects stdout/stderr to `/dev/null`, so persistent rotating file logging at `~/.cache/repotier/daemon.log` is essential for diagnosing git/API issues. Using stdlib `log/slog` (`slog.LevelVar`) + a ~35-line mutex-guarded `rotatingWriter` keeps `go.mod` at zero external dependencies and allows live level/threshold updates from Settings without daemon restart.
+ALTERNATIVES: `gopkg.in/natefinch/lumberjack.v2`; external log viewer tools only.
+DEFERRED: Gzip compression of rotated logs; time-based rotation.

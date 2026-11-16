@@ -21,6 +21,7 @@
 - [x] **CLI-DAEMON-002**: When the running `repotier daemon` receives `SIGINT`, `SIGTERM`, or an internal shutdown signal from `POST /api/shutdown`, the daemon shall execute `http.Server.Shutdown` with a `5s` timeout and remove `~/.cache/repotier/daemon.pid` and `~/.cache/repotier/daemon.port` before exiting.
 - [x] **CLI-DAEMON-003**: When `repotier shutdown` is invoked and `POST http://127.0.0.1:<port>/api/shutdown` succeeds with `202 Accepted`, the CLI shall poll `GET /api/health` for up to `5s` until unreachable, print a shutdown confirmation message, and exit `0`.
 - [x] **CLI-DAEMON-004**: If `repotier shutdown` cannot connect to `http://127.0.0.1:<port>/api/shutdown`, then the CLI shall remove any stale `~/.cache/repotier/daemon.pid` and `~/.cache/repotier/daemon.port` files, print `"Daemon is not running"`, and exit `0`.
+- [x] **CLI-DAEMON-005**: When `repotier daemon` runs, the daemon shall write structured `log/slog` logs to `~/.cache/repotier/daemon.log` and rotate backup files `.1`..`.<max_backups>` via `os.Rename` whenever the active log file size reaches `max_size_mb` MB.
 
 ## Self-Update & Build Tooling
 

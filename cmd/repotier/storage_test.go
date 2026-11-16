@@ -155,3 +155,29 @@ func TestStorageConcurrencyLockAndCorruptRecovery(t *testing.T) {
 		t.Fatalf("expected 8 repos after concurrent upserts, got %d (err=%v)", len(finalRepos), err)
 	}
 }
+
+// @spec STORAGE-CFG-004
+func TestStorageLoggingConfigDefaultsAndValidation(t *testing.T) {
+	store := NewStore(t.TempDir(), t.TempDir())
+	cfg, err := store.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Logging.Level != "info" || cfg.Logging.MaxSizeMB != 5 || cfg.Logging.MaxBackups != 3 {
+		t.Fatalf("unexpected default logging config: %+v", cfg.Logging)
+	}
+
+	if err := store.SaveLoggingConfig(LoggingConfig{Level: "bogus", MaxSizeMB: 5, MaxBackups: 3}); err == nil {
+		t.Fatalf("expected error for invalid log level")
+	}
+	if err := store.SaveLoggingConfig(LoggingConfig{Level: "debug", MaxSizeMB: 0, MaxBackups: 3}); err == nil {
+		t.Fatalf("expected error for max_size_mb=0")
+	}
+	if err := store.SaveLoggingConfig(LoggingConfig{Level: "debug", MaxSizeMB: 10, MaxBackups: 4}); err != nil {
+		t.Fatalf("SaveLoggingConfig failed: %v", err)
+	}
+	reloaded, err := store.LoadConfig()
+	if err != nil || reloaded.Logging.Level != "debug" || reloaded.Logging.MaxSizeMB != 10 || reloaded.Logging.MaxBackups != 4 {
+		t.Fatalf("unexpected reloaded logging config: %+v (err=%v)", reloaded.Logging, err)
+	}
+}
