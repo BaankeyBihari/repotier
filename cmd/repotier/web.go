@@ -201,7 +201,7 @@ func (s *Server) Handler() http.Handler {
 	return s.localhostGuard(mux)
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011, WEB-UI-012
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		writeJSONError(w, http.StatusNotFound, "not found", "")

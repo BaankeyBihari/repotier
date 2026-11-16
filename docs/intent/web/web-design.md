@@ -126,6 +126,9 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
   - **Editor Overrides:** Shows all 5 editors, `detected_path`, editable `override_path` input, **Save** button (`PUT /api/settings/editors`), and **Test Launch** button (opens current selected repo or user home directory).
   - **Daemon Info:** Displays version, PID, `127.0.0.1:<port>`, and **Shutdown Daemon** button (`POST /api/shutdown`).
   - **Daemon Logging:** Displays `log_path` (`~/.cache/repotier/daemon.log`), **Log Level** select (`debug`, `info`, `warn`, `error`), **Max Size (MB)**, **Max Backups**, **Save** button (`PUT /api/settings/logging`), and **View Last 100 Lines** button opening a log viewer modal (`GET /api/logs?lines=100`).
+- **Toast Notifications & Activity Hub:**
+  - Interactive action outcomes (success and failure) render as stacked, auto-dismissing toast banners (`4s` timeout, max `4` visible) in `#toastContainer`, leaving the top `#warningBanner` reserved for persistent unreachable-repository warnings.
+  - Every toast event is recorded in an in-memory `activityLog` (capped at `100` entries since page launch) viewable via the top-nav **Activity** button modal with a **Clear** action.
 
 ## Decisions & Alternatives
 
