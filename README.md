@@ -12,6 +12,14 @@
 
 ## Installation
 
+### Quick Install (macOS & Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BaankeyBihari/repotier/main/scripts/install.sh | sh
+```
+
+*(Set `INSTALL_DIR=/custom/bin` or `VERSION=v2026.11.1` if needed.)*
+
 ### From GitHub Releases
 
 Download the latest `repotier_<os>_<arch>.tar.gz` archive for macOS (`darwin_arm64`, `darwin_amd64`) or Linux (`linux_amd64`, `linux_arm64`) from [GitHub Releases](https://github.com/BaankeyBihari/repotier/releases) and place `repotier` on your `PATH`.
