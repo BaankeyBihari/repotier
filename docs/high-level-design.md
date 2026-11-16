@@ -10,7 +10,7 @@ Developers working across multiple local Git repositories and linked worktrees (
 
 1. **Zero-Friction CLI Entry & Auto-Discovery:** Running `repotier` inside any Git repository or linked worktree resolves the canonical main repository root (`git rev-parse --path-format=absolute --git-common-dir`), records it in a persistent file-locked cache (`~/.cache/repotier/repos.json`), ensures a background localhost daemon is running, and opens the browser pre-selected to that repository.
 2. **Localhost Daemon & Embedded Single-Page UI:** The background daemon binds strictly to `127.0.0.1:<port>` (default `45910`), serves an embedded HTML/CSS/JS dashboard (`//go:embed`), and exposes a JSON REST API guarded against cross-origin requests.
-3. **Direct Git CLI Execution:** All repository health checks, worktree listings, branch/upstream mutations, and deletions execute `git -C <path> ...` via `os/exec`, preserving the user's `.gitconfig`, SSH agent, and Git safety invariants.
+3. **Direct Git & GitHub CLI Execution:** All repository health checks, worktree listings, remote discovery, branch/upstream mutations, and deletions execute `git -C <path> ...` via `os/exec`, while read-only remote Issue and Pull Request listings execute `gh` CLI (with a stdlib GitHub REST API fallback), preserving the user's `.gitconfig`, SSH agent, `gh` auth session, and Git safety invariants.
 4. **Flat Single-Package Codebase under `cmd/repotier/`:** All Go source files and the embedded `ui/index.html` reside in a single flat `package main` inside `cmd/repotier/` (with `go.mod` at the repository root), keeping the project root clean while preserving native `go build ./cmd/repotier` and `go install` binary naming and organizing design intent into four cohesive arrow segments (`CLI`, `STORAGE`, `GITOPS`, `WEB`).
 
 ## Target Users
@@ -21,7 +21,7 @@ Developers working across multiple local Git repositories and linked worktrees (
 ## Goals
 
 - Sub-second CLI startup that auto-registers the current Git repository, auto-starts the background daemon within 3 seconds if not running, and launches the dashboard.
-- Full lifecycle visibility and control over worktrees (list, dirty count, open in detected/overridden editor, remove with optional `--force` and branch deletion) and local branches (upstream set/unset, ahead/behind tracking, safe `-d` deletion with `-D` escalation on `409 Conflict`).
+- Full lifecycle visibility and control over worktrees (list, dirty count, open in detected/overridden editor, remove with optional `--force` and branch deletion), local branches (upstream set/unset, ahead/behind tracking, safe `-d` deletion with `-D` escalation on `409 Conflict`), and repository remotes (top remotes bar on `Workspace`, local-only repository detection banner, and a `Repositories` tab grouping `Workspaces`, read-only `Issues`, and read-only `PRs` with external links).
 - Single self-contained executable on macOS and Linux with zero external runtime assets or CDN dependencies.
 - Self-update capability (`repotier update`) via GitHub releases with automatic daemon restart.
 

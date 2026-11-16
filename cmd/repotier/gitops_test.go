@@ -235,3 +235,53 @@ func TestDeleteWorktreeDirtyDetachedAndUnmerged(t *testing.T) {
 		t.Fatalf("detached worktree delete failed: res=%+v err=%v", res2, err)
 	}
 }
+
+// @spec GITOPS-REM-001, GITOPS-REM-002
+func TestListRemotesAndRemoteIssuesPRs(t *testing.T) {
+	repo := initTestGitRepo(t)
+
+	// 1. Local-only repo (zero remotes)
+	remotes, err := ListRemotes(repo)
+	if err != nil || len(remotes) != 0 {
+		t.Fatalf("expected 0 remotes on local-only repo, got %v (err=%v)", remotes, err)
+	}
+
+	// 2. Add SSH and HTTPS remotes
+	mustGit(t, repo, "remote", "add", "origin", "git@github.com:BaankeyBihari/repotier.git")
+	mustGit(t, repo, "remote", "add", "upstream", "https://github.com/octocat/Hello-World.git")
+
+	remotes, err = ListRemotes(repo)
+	if err != nil || len(remotes) != 2 {
+		t.Fatalf("expected 2 remotes, got %v (err=%v)", remotes, err)
+	}
+	if remotes[0].Name != "origin" || remotes[0].WebURL != "https://github.com/BaankeyBihari/repotier" || remotes[0].RepoSlug != "BaankeyBihari/repotier" {
+		t.Fatalf("unexpected origin remote: %+v", remotes[0])
+	}
+	if remotes[1].Name != "upstream" || remotes[1].WebURL != "https://github.com/octocat/Hello-World" || remotes[1].RepoSlug != "octocat/Hello-World" {
+		t.Fatalf("unexpected upstream remote: %+v", remotes[1])
+	}
+
+	// 3. Read-only issues & PRs via fallback REST API when gh CLI is unavailable
+	origGH := ghBinaryName
+	defer func() { ghBinaryName = origGH }()
+	ghBinaryName = "nonexistent-gh-bin"
+
+	var issuesJSON = `[{"number":3,"title":"feat: add fetch","html_url":"https://github.com/BaankeyBihari/repotier/issues/3","state":"open","user":{"login":"BaankeyBihari"}}]`
+	var pullsJSON = `[{"number":4,"title":"ci: add renovate","html_url":"https://github.com/BaankeyBihari/repotier/pull/4","state":"open","draft":false,"head":{"ref":"ci/gov"},"base":{"ref":"main"},"user":{"login":"BaankeyBihari"}}]`
+	origFetcher := githubHTTPGet
+	defer func() { githubHTTPGet = origFetcher }()
+	githubHTTPGet = func(endpoint string) ([]byte, error) {
+		if filepath.Base(endpoint) == "issues?state=open&per_page=30" {
+			return []byte(issuesJSON), nil
+		}
+		return []byte(pullsJSON), nil
+	}
+
+	remName, issues, prs, err := ListRemoteIssuesAndPRs(repo, "origin")
+	if err != nil || remName != "origin" || len(issues) != 1 || len(prs) != 1 {
+		t.Fatalf("ListRemoteIssuesAndPRs = %q, %v, %v, %v", remName, issues, prs, err)
+	}
+	if issues[0].Number != 3 || prs[0].Number != 4 || prs[0].HeadRef != "ci/gov" || prs[0].BaseRef != "main" {
+		t.Fatalf("unexpected issues/prs payload: issues=%+v prs=%+v", issues, prs)
+	}
+}

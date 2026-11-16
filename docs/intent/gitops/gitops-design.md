@@ -42,8 +42,16 @@ The `GITOPS` segment encapsulates all interactions with the local `git` CLI (`os
     - `checked_out_in`: matching worktree `path` where `wt.Branch == branch.Name` (`""` if not checked out in any worktree).
     - `is_main_wt`: `true` if and only if the matching worktree has `is_main == true`.
 
-### 4. Upstream Management
+### 4. Upstream & Remote Management
 
+- **Configured Remotes (`ListRemotes(repoPath string)`):**
+  - Runs `git -C <repoPath> remote -v`.
+  - Deduplicates remote names (preferring `(fetch)` URL), normalizes SSH (`git@github.com:owner/repo.git`, `ssh://git@github.com/owner/repo.git`) and HTTPS (`https://github.com/owner/repo.git`) URLs into a browser-clickable `web_url` (`https://github.com/owner/repo`) and `repo_slug` (`owner/repo`), and returns `[]Remote` (`name`, `url`, `web_url`, `repo_slug`).
+  - When `len(remotes) == 0`, the repository is classified as **local-only** (`is_local_only: true`).
+- **Read-Only Remote Issues & Pull Requests (`ListRemoteIssuesAndPRs(repoPath, remoteName string)`):**
+  - Resolves target remote (`origin` by default, or first remote / requested `remoteName`). If the repository has zero remotes (`is_local_only`), returns empty slices immediately.
+  - Invokes `gh issue list -R <slug_or_url> --state open --limit 30 --json number,title,url,state,author,updatedAt` and `gh pr list -R <slug_or_url> --state open --limit 30 --json number,title,url,state,headRefName,baseRefName,isDraft,author,updatedAt` (`10s` timeout).
+  - If `gh` is not installed or fails and `repo_slug` is a GitHub `owner/repo`, falls back to unauthenticated `GET https://api.github.com/repos/<owner>/<repo>/issues?state=open&per_page=30` (filtering out items with a `pull_request` key) and `GET https://api.github.com/repos/<owner>/<repo>/pulls?state=open&per_page=30`.
 - **Available Remote Refs (`ListRemoteRefs(repoPath string)`):**
   - Runs `git -C <repoPath> for-each-ref --format=%(refname:short) refs/remotes/`.
   - Filters out symbolic HEAD refs (`*/HEAD` or bare remote names without a `/` branch component).

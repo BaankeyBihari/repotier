@@ -174,6 +174,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/repos", s.handleGetRepos)
 	mux.HandleFunc("DELETE /api/repos", s.handleDeleteRepos)
 	mux.HandleFunc("GET /api/repo/details", s.handleRepoDetails)
+	mux.HandleFunc("GET /api/repo/remote-items", s.handleRepoRemoteItems)
 	mux.HandleFunc("POST /api/branches/upstream", s.handleSetUpstream)
 	mux.HandleFunc("DELETE /api/branches", s.handleDeleteBranch)
 	mux.HandleFunc("DELETE /api/worktrees", s.handleDeleteWorktree)
@@ -183,7 +184,7 @@ func (s *Server) Handler() http.Handler {
 	return s.localhostGuard(mux)
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 		writeJSONError(w, http.StatusNotFound, "not found", "")
@@ -257,10 +258,12 @@ func (s *Server) handleRepoDetails(w http.ResponseWriter, r *http.Request) {
 	repoPath := strings.TrimSpace(r.URL.Query().Get("path"))
 	if repoPath == "" || !IsRepoHealthy(repoPath) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"exists":      false,
-			"worktrees":   []Worktree{},
-			"branches":    []Branch{},
-			"remote_refs": []string{},
+			"exists":        false,
+			"is_local_only": false,
+			"remotes":       []Remote{},
+			"worktrees":     []Worktree{},
+			"branches":      []Branch{},
+			"remote_refs":   []string{},
 		})
 		return
 	}
@@ -275,16 +278,58 @@ func (s *Server) handleRepoDetails(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "failed to list branches", err.Error())
 		return
 	}
-	remotes, err := ListRemoteRefs(repoPath)
+	remotes, err := ListRemotes(repoPath)
 	if err != nil {
-		remotes = []string{}
+		remotes = []Remote{}
+	}
+	remoteRefs, err := ListRemoteRefs(repoPath)
+	if err != nil {
+		remoteRefs = []string{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"exists":      true,
-		"worktrees":   wts,
-		"branches":    branches,
-		"remote_refs": remotes,
+		"exists":        true,
+		"is_local_only": len(remotes) == 0,
+		"remotes":       remotes,
+		"worktrees":     wts,
+		"branches":      branches,
+		"remote_refs":   remoteRefs,
 	})
+}
+
+// @spec WEB-API-013
+func (s *Server) handleRepoRemoteItems(w http.ResponseWriter, r *http.Request) {
+	repoPath := strings.TrimSpace(r.URL.Query().Get("path"))
+	remoteName := strings.TrimSpace(r.URL.Query().Get("remote"))
+	if repoPath == "" || !IsRepoHealthy(repoPath) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"is_local_only": true,
+			"remote":        "",
+			"issues":        []IssueItem{},
+			"prs":           []PRItem{},
+		})
+		return
+	}
+	remotes, _ := ListRemotes(repoPath)
+	if len(remotes) == 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"is_local_only": true,
+			"remote":        "",
+			"issues":        []IssueItem{},
+			"prs":           []PRItem{},
+		})
+		return
+	}
+	resolvedRemote, issues, prs, err := ListRemoteIssuesAndPRs(repoPath, remoteName)
+	resp := map[string]any{
+		"is_local_only": false,
+		"remote":        resolvedRemote,
+		"issues":        issues,
+		"prs":           prs,
+	}
+	if err != nil {
+		resp["error"] = err.Error()
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // @spec WEB-API-007

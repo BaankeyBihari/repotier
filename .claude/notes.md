@@ -34,3 +34,7 @@ DEFERRED: Homebrew tap formula generation.
 WHY: Setting `var Version = "dev"` in `main.go` and `VERSION = "dev"` in `mise.toml` clearly distinguishes local source builds from official GitHub Release builds (`YYYY.MM.N`) and allows `repotier update` (`!curOK` in `isNewerVersion`) to upgrade local builds to the latest published release.
 ALTERNATIVES: `dev-<short-sha>`; `unstable`; hardcoded `2026.11.1` in `mise.toml`.
 DEFERRED: None.
+## 2026-11-16 - Repositories Tab (Workspaces, Issues, PRs), Remotes Bar & Local-Only Banner
+WHY: Developers need read-only visibility into open remote Issues and PRs alongside their local worktrees without leaving the dashboard, plus clear indication when a repo has multiple remotes vs. is local-only. Using `gh` CLI (`gh issue list` / `gh pr list`) with a stdlib GitHub REST API fallback reuses local auth without storing tokens or adding SDK dependencies.
+ALTERNATIVES: Multi-repo accordion view; storing GitHub PATs in `config.json`; `google/go-github` dependency.
+DEFERRED: Mutating issues/PRs from the dashboard (explicitly read-only).

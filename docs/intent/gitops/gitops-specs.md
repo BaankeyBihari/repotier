@@ -16,8 +16,10 @@
 - [x] **GITOPS-BR-001**: When `ListBranches(repoPath, worktrees)` is called, `GITOPS` shall parse `git -C <repoPath> for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(HEAD) refs/heads/` and cross-reference each branch against `worktrees` (matching canonical paths via `filepath.EvalSymlinks`) to populate `checked_out_in` and `is_main_wt` (`true` only when `checked_out_in` matches the `is_main == true` worktree).
 - [x] **GITOPS-BR-002**: When `ListBranches(repoPath, worktrees)` parses `%(upstream:track)`, `GITOPS` shall extract integer `ahead` and `behind` counts, and if `%(upstream:track)` is `[gone]`, set `ahead: 0`, `behind: 0`, and `gone: true`.
 
-## Upstream Management
+## Upstream & Remote Management
 
+- [x] **GITOPS-REM-001**: When `ListRemotes(repoPath)` is called, `GITOPS` shall parse `git -C <repoPath> remote -v`, deduplicate remote entries by name, normalize SSH/HTTPS Git URLs into a browser-clickable `web_url` and `repo_slug` (`owner/repo`), and return an empty slice when no remotes are configured (`is_local_only == true`).
+- [x] **GITOPS-REM-002**: When `ListRemoteIssuesAndPRs(repoPath, remoteName)` is called for a repository with at least one configured remote, `GITOPS` shall query open issues and pull requests in read-only mode via `gh issue list` and `gh pr list` (falling back to the GitHub REST API `/repos/<owner>/<repo>/issues` and `/pulls` when `gh` is unavailable) and return each item's `number`, `title`, `url`, `state`, `author`, and PR branch metadata.
 - [x] **GITOPS-UP-001**: When `ListRemoteRefs(repoPath)` is called, `GITOPS` shall return all refs from `git -C <repoPath> for-each-ref --format=%(refname:short) refs/remotes/` excluding symbolic `*/HEAD` refs and bare remote names without a `/` branch separator.
 - [x] **GITOPS-UP-002**: When `SetBranchUpstream(repoPath, branch, upstream)` is called with a non-empty `upstream`, `GITOPS` shall execute `git -C <repoPath> branch --set-upstream-to=<upstream> <branch>`; when called with an empty `upstream`, `GITOPS` shall execute `git -C <repoPath> branch --unset-upstream <branch>`.
 

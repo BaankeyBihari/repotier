@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007 -->
+<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -67,6 +67,12 @@
     button:disabled { opacity: 0.45; cursor: not-allowed; }
     button.primary { background: #0284c7; border-color: #0284c7; }
     button.danger { background: #b91c1c; border-color: #b91c1c; }
+    a.ext-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    a.ext-link:hover { text-decoration: underline; }
     .nav-tabs { display: flex; gap: 8px; align-items: center; }
     .tab-btn.active { background: var(--accent); color: #0f172a; font-weight: 600; }
     main { max-width: 1180px; margin: 20px auto; padding: 0 24px; }
@@ -80,6 +86,32 @@
       background: rgba(245, 158, 11, 0.16);
       border: 1px solid var(--warning);
       color: #fde68a;
+    }
+    .banner.info {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--accent);
+      color: #bae6fd;
+    }
+    .remotes-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .remote-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
     }
     .card {
       background: var(--surface);
@@ -96,6 +128,10 @@
       border-bottom: 1px solid var(--border);
     }
     th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+    tr.highlight-wt {
+      background: rgba(56, 189, 248, 0.15);
+      transition: background 0.4s ease;
+    }
     .badge {
       display: inline-block;
       padding: 2px 8px;
@@ -178,6 +214,7 @@
     </div>
     <div class="nav-tabs">
       <button id="tabWorkspace" class="tab-btn active" onclick="switchTab('workspace')">Workspace</button>
+      <button id="tabRepositories" class="tab-btn" onclick="switchTab('repositories')">Repositories</button>
       <button id="tabSettings" class="tab-btn" onclick="switchTab('settings')">Settings</button>
       <button id="refreshBtn" onclick="refreshAll()">&#x21bb; Refresh</button>
     </div>
@@ -194,7 +231,13 @@
       <p>Run <code class="mono">repotier</code> inside any local Git repository or linked worktree to register it and open the dashboard.</p>
     </div>
 
+    <!-- Workspace Tab -->
     <section id="workspaceView">
+      <div id="workspaceLocalOnlyBanner" class="banner info hidden">
+        <span>This repository is local-only (no Git remotes configured)</span>
+      </div>
+      <div id="workspaceRemotesBar" class="remotes-bar hidden"></div>
+
       <div class="card">
         <h2>Worktrees</h2>
         <table>
@@ -228,6 +271,64 @@
       </div>
     </section>
 
+    <!-- Repositories Tab (Workspaces, Issues, PRs) -->
+    <section id="repositoriesView" class="hidden">
+      <div id="repositoriesLocalOnlyBanner" class="banner info hidden">
+        <span>This repository is local-only (no Git remotes configured)</span>
+      </div>
+      <div id="repositoriesRemoteSelectorBar" class="remotes-bar hidden"></div>
+
+      <div class="card">
+        <h2>Workspaces</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Workspace Path</th>
+              <th>Branch / HEAD</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="repoWorkspacesBody"></tbody>
+        </table>
+      </div>
+
+      <div id="repoIssuesCard" class="card">
+        <h2>Issues (Read-Only)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>State</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody id="repoIssuesBody"></tbody>
+        </table>
+      </div>
+
+      <div id="repoPRsCard" class="card">
+        <h2>Pull Requests (Read-Only)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Branches</th>
+              <th>Author</th>
+              <th>State</th>
+              <th>Link</th>
+            </tr>
+          </thead>
+          <tbody id="repoPRsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
     <section id="settingsView" class="hidden">
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -321,8 +422,12 @@
   <script>
     let allRepos = [];
     let activeRepo = "";
+    let activeTab = "workspace";
+    let activeRemoteName = "";
+    let highlightedWorktreePath = "";
     let editors = [];
-    let currentDetails = { worktrees: [], branches: [], remote_refs: [] };
+    let currentDetails = { is_local_only: false, remotes: [], worktrees: [], branches: [], remote_refs: [] };
+    let currentRemoteItems = { is_local_only: false, remote: "", issues: [], prs: [] };
     let modalWT = null;
     let modalBranch = "";
 
@@ -335,24 +440,41 @@
     }
 
     function switchTab(tab) {
-      const isWS = tab === 'workspace';
-      document.getElementById('tabWorkspace').classList.toggle('active', isWS);
-      document.getElementById('tabSettings').classList.toggle('active', !isWS);
-      document.getElementById('workspaceView').classList.toggle('hidden', !isWS && allRepos.some(r => r.exists));
-      document.getElementById('settingsView').classList.toggle('hidden', isWS);
-      if (isWS) {
-        updateEmptyVsWorkspace();
-      } else {
-        document.getElementById('emptyState').classList.add('hidden');
+      activeTab = tab;
+      document.getElementById('tabWorkspace').classList.toggle('active', tab === 'workspace');
+      document.getElementById('tabRepositories').classList.toggle('active', tab === 'repositories');
+      document.getElementById('tabSettings').classList.toggle('active', tab === 'settings');
+      updateEmptyVsWorkspace();
+      if (tab === 'repositories' && activeRepo) {
+        fetchRemoteItems(activeRepo, activeRemoteName);
       }
+    }
+
+    function selectWorkspaceFromRepoTab(wtPath) {
+      highlightedWorktreePath = wtPath;
+      switchTab('workspace');
+      renderWorktrees();
     }
 
     function updateEmptyVsWorkspace() {
       const hasValid = allRepos.some(r => r.exists);
-      const isSettings = document.getElementById('tabSettings').classList.contains('active');
-      if (isSettings) return;
-      document.getElementById('emptyState').classList.toggle('hidden', hasValid);
-      document.getElementById('workspaceView').classList.toggle('hidden', !hasValid);
+      if (activeTab === 'settings') {
+        document.getElementById('emptyState').classList.add('hidden');
+        document.getElementById('workspaceView').classList.add('hidden');
+        document.getElementById('repositoriesView').classList.add('hidden');
+        document.getElementById('settingsView').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('settingsView').classList.add('hidden');
+      if (!hasValid) {
+        document.getElementById('emptyState').classList.remove('hidden');
+        document.getElementById('workspaceView').classList.add('hidden');
+        document.getElementById('repositoriesView').classList.add('hidden');
+        return;
+      }
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('workspaceView').classList.toggle('hidden', activeTab !== 'workspace');
+      document.getElementById('repositoriesView').classList.toggle('hidden', activeTab !== 'repositories');
     }
 
     async function loadInitial() {
@@ -368,6 +490,9 @@
       await Promise.all([fetchHealth(), fetchEditors(), fetchRepos(activeRepo)]);
       if (activeRepo) {
         await fetchRepoDetails(activeRepo);
+        if (activeTab === 'repositories') {
+          await fetchRemoteItems(activeRepo, activeRemoteName);
+        }
       }
     }
 
@@ -446,8 +571,13 @@
       }
       sel.onchange = async () => {
         activeRepo = sel.value;
+        activeRemoteName = '';
+        highlightedWorktreePath = '';
         syncURLRepo(activeRepo);
         await fetchRepoDetails(activeRepo);
+        if (activeTab === 'repositories') {
+          await fetchRemoteItems(activeRepo, '');
+        }
       };
     }
 
@@ -462,8 +592,75 @@
         return;
       }
       currentDetails = data;
+      renderRemotesAndLocalBanners();
       renderWorktrees();
+      renderRepoWorkspaces();
       renderBranches();
+    }
+
+    async function fetchRemoteItems(repoPath, remoteName) {
+      if (!repoPath) return;
+      let q = '/api/repo/remote-items?path=' + encodeURIComponent(repoPath);
+      if (remoteName) q += '&remote=' + encodeURIComponent(remoteName);
+      const res = await fetch(q);
+      if (!res.ok) return;
+      currentRemoteItems = await res.json();
+      activeRemoteName = currentRemoteItems.remote || activeRemoteName;
+      renderRemotesAndLocalBanners();
+      renderRepoIssuesAndPRs();
+    }
+
+    function renderRemotesAndLocalBanners() {
+      const isLocal = Boolean(currentDetails.is_local_only);
+      const remotes = currentDetails.remotes || [];
+
+      document.getElementById('workspaceLocalOnlyBanner').classList.toggle('hidden', !isLocal);
+      document.getElementById('repositoriesLocalOnlyBanner').classList.toggle('hidden', !isLocal);
+      document.getElementById('repoIssuesCard').classList.toggle('hidden', isLocal);
+      document.getElementById('repoPRsCard').classList.toggle('hidden', isLocal);
+
+      const wsBar = document.getElementById('workspaceRemotesBar');
+      wsBar.innerHTML = '';
+      if (!isLocal && remotes.length > 0) {
+        wsBar.classList.remove('hidden');
+        const label = document.createElement('strong');
+        label.textContent = 'Remotes:';
+        wsBar.appendChild(label);
+        for (const r of remotes) {
+          const pill = document.createElement('span');
+          pill.className = 'remote-pill';
+          if (r.web_url) {
+            pill.innerHTML = `<span class="badge main">${escapeHtml(r.name)}</span> <a class="ext-link mono" href="${escapeHtml(r.web_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.repo_slug || r.web_url)} ↗</a>`;
+          } else {
+            pill.innerHTML = `<span class="badge main">${escapeHtml(r.name)}</span> <span class="mono">${escapeHtml(r.url)}</span>`;
+          }
+          wsBar.appendChild(pill);
+        }
+      } else {
+        wsBar.classList.add('hidden');
+      }
+
+      const repoRemBar = document.getElementById('repositoriesRemoteSelectorBar');
+      repoRemBar.innerHTML = '';
+      if (!isLocal && remotes.length > 0) {
+        repoRemBar.classList.remove('hidden');
+        const label = document.createElement('strong');
+        label.textContent = 'Remote Source:';
+        repoRemBar.appendChild(label);
+        for (const r of remotes) {
+          const btn = document.createElement('button');
+          const isCurrent = (activeRemoteName && r.name === activeRemoteName) || (!activeRemoteName && r.name === remotes[0].name);
+          if (isCurrent) btn.className = 'primary';
+          btn.textContent = `${r.name} (${r.repo_slug || r.url})`;
+          btn.onclick = () => {
+            activeRemoteName = r.name;
+            fetchRemoteItems(activeRepo, r.name);
+          };
+          repoRemBar.appendChild(btn);
+        }
+      } else {
+        repoRemBar.classList.add('hidden');
+      }
     }
 
     function renderWorktrees() {
@@ -471,6 +668,9 @@
       tbody.innerHTML = '';
       for (const wt of (currentDetails.worktrees || [])) {
         const tr = document.createElement('tr');
+        if (highlightedWorktreePath && wt.path === highlightedWorktreePath) {
+          tr.className = 'highlight-wt';
+        }
         const branchLabel = wt.detached ? `detached @ ${wt.head}` : wt.branch;
         const roleBadge = wt.is_main ? '<span class="badge main">Main</span>' : '<span class="badge">Linked</span>';
         const statusBadge = wt.dirty_count > 0
@@ -481,7 +681,6 @@
         tdActions.style.display = 'flex';
         tdActions.style.gap = '8px';
 
-        // Open in dropdown
         const dd = document.createElement('div');
         dd.className = 'dropdown';
         const btnOpen = document.createElement('button');
@@ -525,6 +724,80 @@
         `;
         tr.appendChild(tdActions);
         tbody.appendChild(tr);
+      }
+    }
+
+    function renderRepoWorkspaces() {
+      const tbody = document.getElementById('repoWorkspacesBody');
+      tbody.innerHTML = '';
+      for (const wt of (currentDetails.worktrees || [])) {
+        const tr = document.createElement('tr');
+        const branchLabel = wt.detached ? `detached @ ${wt.head}` : wt.branch;
+        const roleBadge = wt.is_main ? '<span class="badge main">Main</span>' : '<span class="badge">Linked</span>';
+        const statusBadge = wt.dirty_count > 0
+          ? `<span class="badge dirty">${wt.dirty_count} dirty</span>`
+          : '<span class="badge clean">Clean</span>';
+
+        const tdAct = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'primary';
+        btn.textContent = 'View in Workspace';
+        btn.onclick = () => selectWorkspaceFromRepoTab(wt.path);
+        tdAct.appendChild(btn);
+
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(wt.path)}</td>
+          <td><span class="badge">${escapeHtml(branchLabel)}</span></td>
+          <td>${roleBadge}</td>
+          <td>${statusBadge}</td>
+        `;
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderRepoIssuesAndPRs() {
+      const issuesBody = document.getElementById('repoIssuesBody');
+      issuesBody.innerHTML = '';
+      const issues = currentRemoteItems.issues || [];
+      if (issues.length === 0) {
+        issuesBody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">No open issues found.</td></tr>';
+      } else {
+        for (const it of issues) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="mono">#${it.number}</td>
+            <td>${escapeHtml(it.title)}</td>
+            <td class="mono">${escapeHtml(it.author || '—')}</td>
+            <td><span class="badge clean">${escapeHtml(it.state || 'open')}</span></td>
+            <td><a class="ext-link" href="${escapeHtml(it.url)}" target="_blank" rel="noopener noreferrer">Open Issue ↗</a></td>
+          `;
+          issuesBody.appendChild(tr);
+        }
+      }
+
+      const prsBody = document.getElementById('repoPRsBody');
+      prsBody.innerHTML = '';
+      const prs = currentRemoteItems.prs || [];
+      if (prs.length === 0) {
+        prsBody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);">No open pull requests found.</td></tr>';
+      } else {
+        for (const pr of prs) {
+          const tr = document.createElement('tr');
+          const stateBadge = pr.is_draft
+            ? '<span class="badge dirty">draft</span>'
+            : `<span class="badge clean">${escapeHtml(pr.state || 'open')}</span>`;
+          const branchFlow = pr.head_ref ? `${pr.head_ref} → ${pr.base_ref || 'main'}` : '—';
+          tr.innerHTML = `
+            <td class="mono">#${pr.number}</td>
+            <td>${escapeHtml(pr.title)}</td>
+            <td class="mono">${escapeHtml(branchFlow)}</td>
+            <td class="mono">${escapeHtml(pr.author || '—')}</td>
+            <td>${stateBadge}</td>
+            <td><a class="ext-link" href="${escapeHtml(pr.url)}" target="_blank" rel="noopener noreferrer">Open PR ↗</a></td>
+          `;
+          prsBody.appendChild(tr);
+        }
       }
     }
 
@@ -838,7 +1111,7 @@
       document.querySelectorAll('.dropdown.open').forEach(el => el.classList.remove('open'));
     });
     window.addEventListener('focus', () => refreshAll());
-    document.addEventListener('visibilitychange', () => {
+    window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') refreshAll();
     });
 
