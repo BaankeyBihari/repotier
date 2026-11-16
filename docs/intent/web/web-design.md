@@ -34,7 +34,8 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 | `/api/shutdown` | `POST` | — | `202 Accepted` `{"status":"shutting_down"}` (triggers async `Server.Shutdown`) |
 | `/api/repos` | `GET` | — | `{"repos":[{"path":"...","name":"...","exists":true,"last_seen":"..."}]}` |
 | `/api/repos` | `DELETE` | `{"path":"..."}` or `{"prune_missing":true}` | `{"status":"ok"}` |
-| `/api/repo/details` | `GET` | `?path=<url_encoded_path>` | `{"exists":true,"worktrees":[...],"branches":[...],"remote_refs":[...]}` |
+| `/api/repo/details` | `GET` | `?path=<url_encoded_path>` | `{"exists":true,"is_local_only":false,"remotes":[...],"worktrees":[...],"branches":[...],"remote_refs":[...]}` |
+| `/api/repo/remote-items` | `GET` | `?path=<url_encoded_path>[&remote=<name>]` | `{"is_local_only":false,"remote":"origin","issues":[...],"prs":[...]}` |
 | `/api/branches/upstream` | `POST` | `{"repo_path":"...","branch":"...","upstream":"..."}` | `{"status":"ok"}` (`400` on invalid input/git failure) |
 | `/api/branches` | `DELETE` | `{"repo_path":"...","branch":"...","force":false}` | `{"branch_deleted":true}` or `409 Conflict` `{"branch_deleted":false,"requires_force":true,"git_error":"..."}` (`400` if checked out in any worktree) |
 | `/api/worktrees` | `DELETE` | `{"repo_path":"...","worktree_path":"...","branch":"...","delete_branch":true,"force":false,"force_worktree":false}` | `{"worktree_removed":true,"branch_deleted":true}` or `409 Conflict` `{"worktree_removed":true,"branch_deleted":false,"requires_force":true,"git_error":"..."}` (`400` on dirty worktree without `force_worktree` or `is_main`) |
@@ -92,10 +93,19 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 
 - **Top Navigation Bar:**
   - Repository selector lists only cached repositories where `exists == true`.
+  - Navigation tabs: `Workspace` | `Repositories` | `Settings`.
   - If URL query `?repo=<path>` points to a non-existent or uncached path with `exists == false`, displays a dismissible warning banner (*"Repository folder is no longer present or reachable"*) and selects the first valid cached repository.
   - If zero valid repositories exist, renders an empty-state guide instructing the user to run `repotier` inside a Git repository.
   - Silent data refresh triggers automatically on `window.focus` and `document.visibilitychange` (when `visibilityState === 'visible'`).
   - After deleting a worktree or branch, re-fetches `/api/repo/details` in place. After removing or pruning the currently selected repository in Settings, re-fetches `/api/repos`, switches selection to the first remaining valid repo (or empty-state view if none remain), and updates the URL query parameter via `history.replaceState`.
+- **Workspace Tab Remotes Header & Local-Only Banner:**
+  - When the active repository has configured Git remotes (`is_local_only == false`), renders a **Remotes** bar at the top of the `Workspace` tab showing a badge/link for each remote (`name` + clickable `web_url` opening in a new tab).
+  - When the active repository has zero configured Git remotes (`is_local_only == true`), renders a **Local-Only Repository** banner (*"This repository is local-only (no Git remotes configured)"*) at the top of both the `Workspace` and `Repositories` tabs.
+- **Repositories Tab (`Workspaces`, `Issues`, `PRs`):**
+  - Scoped to the active repository (with a remote selector pill when multiple remotes exist).
+  - **Workspaces Group:** Lists all worktrees belonging to the repository (`path`, `branch`, `Main`/`Linked` badge, dirty count). Selecting/clicking any workspace switches the view back to the **`Workspace`** tab and highlights that worktree row.
+  - **Issues Group (Read-Only):** Hidden when `is_local_only == true`; otherwise lists open issues from `/api/repo/remote-items` (`#number`, `title`, `state`, `author`) with an external link (`target="_blank"`) to open the issue page.
+  - **PRs Group (Read-Only):** Hidden when `is_local_only == true`; otherwise lists open pull requests from `/api/repo/remote-items` (`#number`, `title`, `head → base`, `draft`/`open` badge, `author`) with an external link (`target="_blank"`) to open the PR page.
 - **Worktree Removal Modal:**
   - Hidden/disabled on primary worktree (`is_main: true`).
   - Checkboxes:

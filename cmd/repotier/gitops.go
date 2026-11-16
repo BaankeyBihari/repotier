@@ -3,7 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,6 +67,293 @@ type DeleteWorktreeResult struct {
 	BranchDeleted   bool   `json:"branch_deleted"`
 	RequiresForce   bool   `json:"requires_force,omitempty"`
 	GitError        string `json:"git_error,omitempty"`
+}
+
+type Remote struct {
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	WebURL   string `json:"web_url"`
+	RepoSlug string `json:"repo_slug"`
+}
+
+type IssueItem struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	State  string `json:"state"`
+	Author string `json:"author"`
+}
+
+type PRItem struct {
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	State   string `json:"state"`
+	HeadRef string `json:"head_ref"`
+	BaseRef string `json:"base_ref"`
+	IsDraft bool   `json:"is_draft"`
+	Author  string `json:"author"`
+}
+
+var (
+	githubAPIBaseURL = "https://api.github.com"
+	ghBinaryName     = "gh"
+	githubHTTPGet    = defaultGitHubHTTPGet
+)
+
+func defaultGitHubHTTPGet(endpoint string) ([]byte, error) {
+	client := &http.Client{Timeout: gitCmdTimeout}
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "repotier")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github API returned HTTP %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+func normalizeGitRemoteURL(rawURL string) (string, string) {
+	u := strings.TrimSpace(rawURL)
+	u = strings.TrimSuffix(u, ".git")
+	if strings.HasPrefix(u, "git@") {
+		rest := strings.TrimPrefix(u, "git@")
+		if parts := strings.SplitN(rest, ":", 2); len(parts) == 2 {
+			host := parts[0]
+			slug := strings.TrimPrefix(parts[1], "/")
+			return "https://" + host + "/" + slug, slug
+		}
+	}
+	if strings.HasPrefix(u, "ssh://") {
+		rest := strings.TrimPrefix(u, "ssh://")
+		rest = strings.TrimPrefix(rest, "git@")
+		if parts := strings.SplitN(rest, "/", 2); len(parts) == 2 {
+			host := strings.SplitN(parts[0], ":", 2)[0]
+			slug := parts[1]
+			return "https://" + host + "/" + slug, slug
+		}
+	}
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+		schemeIdx := strings.Index(u, "://")
+		rest := u[schemeIdx+3:]
+		if parts := strings.SplitN(rest, "/", 2); len(parts) == 2 {
+			return u, parts[1]
+		}
+		return u, ""
+	}
+	return "", ""
+}
+
+// @spec GITOPS-REM-001
+func ListRemotes(repoPath string) ([]Remote, error) {
+	out, stderr, err := runGit(repoPath, "remote", "-v")
+	if err != nil {
+		return nil, &GitError{Kind: err, Stderr: stderr}
+	}
+	seen := make(map[string]bool)
+	remotes := []Remote{}
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		name, rawURL := fields[0], fields[1]
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		webURL, slug := normalizeGitRemoteURL(rawURL)
+		remotes = append(remotes, Remote{
+			Name:     name,
+			URL:      rawURL,
+			WebURL:   webURL,
+			RepoSlug: slug,
+		})
+	}
+	return remotes, nil
+}
+
+// @spec GITOPS-REM-002
+func ListRemoteIssuesAndPRs(repoPath, remoteName string) (string, []IssueItem, []PRItem, error) {
+	remotes, err := ListRemotes(repoPath)
+	if err != nil || len(remotes) == 0 {
+		return "", []IssueItem{}, []PRItem{}, err
+	}
+
+	selected := remotes[0]
+	for _, r := range remotes {
+		if (remoteName != "" && r.Name == remoteName) || (remoteName == "" && r.Name == "origin") {
+			selected = r
+			break
+		}
+	}
+
+	targetRepo := selected.WebURL
+	if targetRepo == "" {
+		targetRepo = selected.RepoSlug
+	}
+	if targetRepo == "" {
+		return selected.Name, []IssueItem{}, []PRItem{}, nil
+	}
+
+	if issues, prs, err := fetchViaGHCLI(repoPath, targetRepo); err == nil {
+		return selected.Name, issues, prs, nil
+	}
+	if selected.RepoSlug != "" {
+		issues, prs, err := fetchViaGitHubREST(selected.RepoSlug)
+		return selected.Name, issues, prs, err
+	}
+	return selected.Name, []IssueItem{}, []PRItem{}, nil
+}
+
+func fetchViaGHCLI(repoPath, targetRepo string) ([]IssueItem, []PRItem, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCmdTimeout)
+	defer cancel()
+
+	issueCmd := exec.CommandContext(ctx, ghBinaryName, "issue", "list", "-R", targetRepo, "--state", "open", "--limit", "30", "--json", "number,title,url,state,author")
+	issueCmd.Dir = repoPath
+	issueOut, err := issueCmd.Output()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	prCmd := exec.CommandContext(ctx, ghBinaryName, "pr", "list", "-R", targetRepo, "--state", "open", "--limit", "30", "--json", "number,title,url,state,headRefName,baseRefName,isDraft,author")
+	prCmd.Dir = repoPath
+	prOut, err := prCmd.Output()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var rawIssues []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		URL    string `json:"url"`
+		State  string `json:"state"`
+		Author struct {
+			Login string `json:"login"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(issueOut, &rawIssues); err != nil {
+		return nil, nil, err
+	}
+	issues := make([]IssueItem, 0, len(rawIssues))
+	for _, it := range rawIssues {
+		issues = append(issues, IssueItem{
+			Number: it.Number,
+			Title:  it.Title,
+			URL:    it.URL,
+			State:  strings.ToLower(it.State),
+			Author: it.Author.Login,
+		})
+	}
+
+	var rawPRs []struct {
+		Number      int    `json:"number"`
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+		State       string `json:"state"`
+		HeadRefName string `json:"headRefName"`
+		BaseRefName string `json:"baseRefName"`
+		IsDraft     bool   `json:"isDraft"`
+		Author      struct {
+			Login string `json:"login"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(prOut, &rawPRs); err != nil {
+		return nil, nil, err
+	}
+	prs := make([]PRItem, 0, len(rawPRs))
+	for _, pr := range rawPRs {
+		prs = append(prs, PRItem{
+			Number:  pr.Number,
+			Title:   pr.Title,
+			URL:     pr.URL,
+			State:   strings.ToLower(pr.State),
+			HeadRef: pr.HeadRefName,
+			BaseRef: pr.BaseRefName,
+			IsDraft: pr.IsDraft,
+			Author:  pr.Author.Login,
+		})
+	}
+	return issues, prs, nil
+}
+
+func fetchViaGitHubREST(repoSlug string) ([]IssueItem, []PRItem, error) {
+	issuesBody, err := githubHTTPGet(fmt.Sprintf("%s/repos/%s/issues?state=open&per_page=30", githubAPIBaseURL, repoSlug))
+	if err != nil {
+		return []IssueItem{}, []PRItem{}, err
+	}
+	var ghIssues []struct {
+		Number      int             `json:"number"`
+		Title       string          `json:"title"`
+		HTMLURL     string          `json:"html_url"`
+		State       string          `json:"state"`
+		PullRequest json.RawMessage `json:"pull_request"`
+		User        struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(issuesBody, &ghIssues); err != nil {
+		return []IssueItem{}, []PRItem{}, err
+	}
+	issues := []IssueItem{}
+	for _, it := range ghIssues {
+		if len(it.PullRequest) > 0 && string(it.PullRequest) != "null" {
+			continue
+		}
+		issues = append(issues, IssueItem{
+			Number: it.Number,
+			Title:  it.Title,
+			URL:    it.HTMLURL,
+			State:  it.State,
+			Author: it.User.Login,
+		})
+	}
+
+	pullsBody, err := githubHTTPGet(fmt.Sprintf("%s/repos/%s/pulls?state=open&per_page=30", githubAPIBaseURL, repoSlug))
+	if err != nil {
+		return issues, []PRItem{}, err
+	}
+	var ghPulls []struct {
+		Number  int    `json:"number"`
+		Title   string `json:"title"`
+		HTMLURL string `json:"html_url"`
+		State   string `json:"state"`
+		Draft   bool   `json:"draft"`
+		Head    struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+		Base struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
+		User struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(pullsBody, &ghPulls); err != nil {
+		return issues, []PRItem{}, err
+	}
+	prs := make([]PRItem, 0, len(ghPulls))
+	for _, pr := range ghPulls {
+		prs = append(prs, PRItem{
+			Number:  pr.Number,
+			Title:   pr.Title,
+			URL:     pr.HTMLURL,
+			State:   pr.State,
+			HeadRef: pr.Head.Ref,
+			BaseRef: pr.Base.Ref,
+			IsDraft: pr.Draft,
+			Author:  pr.User.Login,
+		})
+	}
+	return issues, prs, nil
 }
 
 // @spec GITOPS-EXEC-001

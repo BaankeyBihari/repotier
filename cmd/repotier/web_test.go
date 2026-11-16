@@ -80,7 +80,7 @@ func TestWebHealthAndShutdownEndpoints(t *testing.T) {
 	}
 }
 
-// @spec WEB-API-004, WEB-API-005, WEB-API-006, WEB-API-007
+// @spec WEB-API-004, WEB-API-005, WEB-API-006, WEB-API-007, WEB-API-013
 func TestWebReposDetailsAndUpstreamEndpoints(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	repo := initTestGitRepo(t)
@@ -117,13 +117,31 @@ func TestWebReposDetailsAndUpstreamEndpoints(t *testing.T) {
 		t.Fatalf("GET /api/repo/details = %d", recDet.Code)
 	}
 	var det struct {
-		Exists     bool       `json:"exists"`
-		Worktrees  []Worktree `json:"worktrees"`
-		Branches   []Branch   `json:"branches"`
-		RemoteRefs []string   `json:"remote_refs"`
+		Exists      bool       `json:"exists"`
+		IsLocalOnly bool       `json:"is_local_only"`
+		Remotes     []Remote   `json:"remotes"`
+		Worktrees   []Worktree `json:"worktrees"`
+		Branches    []Branch   `json:"branches"`
+		RemoteRefs  []string   `json:"remote_refs"`
 	}
-	if err := json.Unmarshal(recDet.Body.Bytes(), &det); err != nil || !det.Exists || len(det.Worktrees) != 1 || len(det.RemoteRefs) != 1 {
+	if err := json.Unmarshal(recDet.Body.Bytes(), &det); err != nil || !det.Exists || det.IsLocalOnly || len(det.Remotes) != 1 || len(det.Worktrees) != 1 || len(det.RemoteRefs) != 1 {
 		t.Fatalf("unexpected repo details: %+v (err=%v)", det, err)
+	}
+
+	// GET /api/repo/remote-items on local-only repo
+	localOnlyRepo := initTestGitRepo(t)
+	recRemItems := httptest.NewRecorder()
+	h.ServeHTTP(recRemItems, httptest.NewRequest(http.MethodGet, "/api/repo/remote-items?path="+url.QueryEscape(localOnlyRepo), nil))
+	if recRemItems.Code != http.StatusOK {
+		t.Fatalf("GET /api/repo/remote-items = %d", recRemItems.Code)
+	}
+	var remPayload struct {
+		IsLocalOnly bool        `json:"is_local_only"`
+		Issues      []IssueItem `json:"issues"`
+		PRs         []PRItem    `json:"prs"`
+	}
+	if err := json.Unmarshal(recRemItems.Body.Bytes(), &remPayload); err != nil || !remPayload.IsLocalOnly {
+		t.Fatalf("expected is_local_only=true for local repo, got %+v (err=%v)", remPayload, err)
 	}
 
 	// POST /api/branches/upstream
@@ -256,7 +274,7 @@ func TestWebEditorsResolutionSettingsAndLaunch(t *testing.T) {
 	}
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009
 func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	srv := NewServer(store, 45910, "v1.0.0")
@@ -281,6 +299,11 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"/api/worktrees/open",
 		"/api/branches/upstream",
 		"history.replaceState",
+		"Repositories",
+		"This repository is local-only (no Git remotes configured)",
+		"/api/repo/remote-items",
+		"Pull Requests",
+		"Issues",
 	}
 	for _, tok := range requiredTokens {
 		if !strings.Contains(body, tok) {
