@@ -3,6 +3,7 @@ go = "1.27"
 golangci-lint = "latest"
 pre-commit = "latest"
 "npm:markdownlint-cli2" = "latest"
+typos = "latest"
 
 [env]
 VERSION = "dev"
@@ -20,8 +21,8 @@ description = "Run full test suite"
 run = "go test -timeout 15s ./cmd/repotier/..."
 
 [tasks.lint]
-description = "Run gofmt, go vet, golangci-lint, and markdownlint-cli2"
-run = "test -z \"$(gofmt -l cmd/repotier)\" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/... && markdownlint-cli2 \"**/*.md\" \"#.claude/**\""
+description = "Run gofmt, go vet, golangci-lint, markdownlint-cli2, and typos"
+run = "test -z \"$(gofmt -l cmd/repotier)\" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/... && markdownlint-cli2 \"**/*.md\" \"#.claude/**\" && typos"
 
 [tasks.install]
 description = "Install repotier binary into $GOPATH/bin or ~/go/bin"

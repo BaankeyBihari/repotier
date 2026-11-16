@@ -9,6 +9,7 @@ Tools are managed via [mise](https://mise.jdx.dev/) (configured in [mise.toml](m
 - **Go `1.27`**
 - **`golangci-lint`**
 - **`markdownlint-cli2`**
+- **`typos`**
 - **`pre-commit`**
 
 Install all tools and register the Git pre-commit hooks:

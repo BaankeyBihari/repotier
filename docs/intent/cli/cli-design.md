@@ -67,15 +67,15 @@ When `repotier daemon [--port <port>]` starts:
 
 ### Build, Clean, Lint & Pre-Commit Tooling
 
-- **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"`, `"npm:markdownlint-cli2" = "latest"` (matching `go 1.27` in `go.mod`).
+- **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"`, `"npm:markdownlint-cli2" = "latest"`, `typos = "latest"` (matching `go 1.27` in `go.mod`).
 - **`mise.toml` Tasks:**
   - `build`: `go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier`
   - `clean`: `rm -f repotier coverage.out && go clean -testcache`
   - `test`: `go test -timeout 15s ./cmd/repotier/...`
-  - `lint`: `test -z "$(gofmt -l cmd/repotier)" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/... && markdownlint-cli2 "**/*.md"`
+  - `lint`: `test -z "$(gofmt -l cmd/repotier)" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/... && markdownlint-cli2 "**/*.md" && typos`
   - `install`: `go install -ldflags "-X main.Version=${VERSION}" ./cmd/repotier`
   - `hooks`: `pre-commit install`
-- **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, and `markdownlint-cli2` before commits.
+- **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`, `_typos.toml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, `markdownlint-cli2`, and `typos` before commits.
 - **Installer Script (`scripts/install.sh`):** POSIX `sh` script invoked via `curl -fsSL https://raw.githubusercontent.com/BaankeyBihari/repotier/main/scripts/install.sh | sh` (documented in `README.md`). Detects `darwin`/`linux` and `amd64`/`arm64`, downloads `repotier_${OS}_${ARCH}.tar.gz` and `checksums.txt` from `releases/latest/download/`, verifies SHA-256 when `shasum`/`sha256sum` is available, extracts `repotier`, and installs it into `${INSTALL_DIR}` (defaulting to `/usr/local/bin` if writable, otherwise `${HOME}/.local/bin`).
 
 ### GitHub Actions Pull Request, Release & Governance Configs
