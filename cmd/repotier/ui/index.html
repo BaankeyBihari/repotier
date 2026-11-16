@@ -204,6 +204,41 @@
     }
     .hidden { display: none !important; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+    .info-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: help;
+    }
+    .info-tip:hover, .info-tip:focus { color: var(--accent); border-color: var(--accent); }
+    .info-card {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      width: 290px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 400;
+      line-height: 1.4;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+      z-index: 40;
+      text-align: left;
+    }
+    .info-tip:hover .info-card, .info-tip:focus .info-card { display: block; }
   </style>
 </head>
 <body>
@@ -257,7 +292,12 @@
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h2 style="margin:0;">Local Branches</h2>
-          <button id="fetchBtn" onclick="fetchActiveRepo()">Fetch (--prune)</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="fetchBtn" onclick="fetchActiveRepo()">Fetch</button>
+            <span class="info-tip" tabindex="0" aria-label="Fetch info">i
+              <span class="info-card">Runs <code class="mono">git fetch --all --prune</code> to update remote tracking refs, refresh ahead/behind counts, and mark deleted upstream branches as <code class="mono">gone</code>.</span>
+            </span>
+          </div>
         </div>
         <table>
           <thead>
@@ -932,7 +972,7 @@
         await fetchRepoDetails(activeRepo);
       } finally {
         if (btn) {
-          btn.textContent = 'Fetch (--prune)';
+          btn.textContent = 'Fetch';
           btn.disabled = Boolean(currentDetails.is_local_only);
         }
       }
