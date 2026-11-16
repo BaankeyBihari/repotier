@@ -28,11 +28,27 @@ jobs:
       - name: Setup mise tools (Go 1.27)
         uses: jdx/mise-action@v2
 
-      - name: Verify formatting, vet, and tests
+      - name: Verify formatting, vet, and tests with coverage
         run: |
           test -z "$(gofmt -l cmd/repotier)"
           go vet ./cmd/repotier/...
-          go test -timeout 15s ./cmd/repotier/...
+          go test -timeout 15s -coverprofile=coverage.out ./cmd/repotier/...
+
+      - name: Update coverage badge on badges branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PCT=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); printf "%.1f", $3}')
+          COLOR=$(awk -v p="$PCT" 'BEGIN { if (p >= 80) print "brightgreen"; else if (p >= 70) print "green"; else if (p >= 50) print "yellow"; else print "orange" }')
+          TMP_BADGE_DIR=$(mktemp -d)
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' "$PCT" "$COLOR" > "$TMP_BADGE_DIR/coverage.json"
+          git -C "$TMP_BADGE_DIR" init -b badges
+          git -C "$TMP_BADGE_DIR" config user.name "github-actions[bot]"
+          git -C "$TMP_BADGE_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$TMP_BADGE_DIR" add coverage.json
+          git -C "$TMP_BADGE_DIR" commit -m "chore: update coverage badge (${PCT}%)"
+          git -C "$TMP_BADGE_DIR" push --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" badges
+          rm -rf "$TMP_BADGE_DIR" coverage.out
 
       - name: Calculate next CalVer (YYYY.MM.N)
         id: calver
