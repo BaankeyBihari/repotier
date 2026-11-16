@@ -359,6 +359,19 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repoRoot, ".markdownlint-cli2.yaml")); err != nil {
 		t.Fatalf("missing .markdownlint-cli2.yaml: %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(repoRoot, "SECURITY.md")); err != nil {
+		t.Fatalf("missing SECURITY.md: %v", err)
+	}
+
+	coBytes, err := os.ReadFile(filepath.Join(repoRoot, ".github", "CODEOWNERS"))
+	if err != nil || !strings.Contains(string(coBytes), "@BaankeyBihari") {
+		t.Fatalf("missing or invalid .github/CODEOWNERS: %v", err)
+	}
+
+	renBytes, err := os.ReadFile(filepath.Join(repoRoot, "renovate.json"))
+	if err != nil || !strings.Contains(string(renBytes), `"mise"`) || !strings.Contains(string(renBytes), `"automerge"`) {
+		t.Fatalf("missing or incomplete renovate.json: %v", err)
+	}
 
 	prBytes, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "pr.yml"))
 	if err != nil {
