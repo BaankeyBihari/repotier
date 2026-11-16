@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -135,6 +136,21 @@ func (env *CLIEnv) Run(args []string) int {
 		}
 		return 0
 
+	case "scan":
+		if len(rest) > 1 {
+			env.printUsage()
+			return 2
+		}
+		targetDir := env.CWD
+		if len(rest) == 1 {
+			targetDir = rest[0]
+		}
+		if err := env.RunScan(targetDir); err != nil {
+			fmt.Fprintf(env.Stderr, "scan error: %v\n", err)
+			return 1
+		}
+		return 0
+
 	default:
 		env.printUsage()
 		return 2
@@ -143,8 +159,71 @@ func (env *CLIEnv) Run(args []string) int {
 
 func (env *CLIEnv) printUsage() {
 	if env.Stderr != nil {
-		fmt.Fprintln(env.Stderr, "Usage: repotier [dashboard | daemon [--port <port>] | shutdown | update]")
+		fmt.Fprintln(env.Stderr, "Usage: repotier [dashboard | daemon [--port <port>] | shutdown | update | scan [dir]]")
 	}
+}
+
+// @spec CLI-CMD-003
+func (env *CLIEnv) RunScan(rootDir string) error {
+	if strings.TrimSpace(rootDir) == "" {
+		rootDir = "."
+	}
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(absRoot)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", absRoot)
+	}
+
+	skipDirs := map[string]bool{
+		"node_modules": true,
+		"vendor":       true,
+		"target":       true,
+		"dist":         true,
+	}
+	seen := make(map[string]bool)
+	var discovered []string
+
+	err = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if path != absRoot && (strings.HasPrefix(name, ".") || skipDirs[name]) {
+			return filepath.SkipDir
+		}
+		if _, statErr := os.Stat(filepath.Join(path, ".git")); statErr == nil {
+			if repoRoot, rErr := DiscoverRepoRoot(path); rErr == nil && repoRoot != "" {
+				if !seen[repoRoot] {
+					seen[repoRoot] = true
+					if uErr := env.Store.UpsertRepo(repoRoot); uErr == nil {
+						discovered = append(discovered, repoRoot)
+					}
+				}
+			}
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if env.Stdout != nil {
+		for _, r := range discovered {
+			fmt.Fprintln(env.Stdout, r)
+		}
+		fmt.Fprintf(env.Stdout, "Discovered and cached %d repositories under %s\n", len(discovered), absRoot)
+	}
+	return nil
 }
 
 func probeHealth(port int, timeout time.Duration) bool {

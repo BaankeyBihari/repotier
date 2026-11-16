@@ -42,6 +42,7 @@ mise run install   # installs into $GOPATH/bin or ~/go/bin
 ```bash
 repotier                      # Discover current Git repo, auto-start daemon, open dashboard
 repotier dashboard            # Same as above
+repotier scan [dir]           # Recursively discover Git repos & worktrees under dir (default cwd)
 repotier daemon --port 45910  # Run HTTP server in foreground on 127.0.0.1:45910
 repotier shutdown             # Gracefully stop the background daemon
 repotier update               # Self-update from GitHub Releases and restart daemon

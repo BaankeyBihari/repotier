@@ -11,7 +11,7 @@ The `CLI` segment owns command-line invocation (`repotier`), pre-run repository 
 
 ## Subcommand Dispatch & Validation
 
-`repotier` accepts an optional positional subcommand (`dashboard`, `daemon`, `shutdown`, `update`), defaulting to `dashboard` when invoked with no arguments. Unknown subcommands or unknown flags print usage to `stderr` and exit with code `2`.
+`repotier` accepts an optional positional subcommand (`dashboard`, `daemon`, `shutdown`, `update`, `scan`), defaulting to `dashboard` when invoked with no arguments. Unknown subcommands or unknown flags print usage to `stderr` and exit with code `2`.
 
 | Invocation | Runs Pre-Run Hook? | Behavior |
 |---|---|---|
@@ -19,6 +19,7 @@ The `CLI` segment owns command-line invocation (`repotier`), pre-run repository 
 | `repotier daemon [--port <port>]` | No | Validates `--port` (`1..65535`, or `0` for OS-assigned ephemeral port), starts HTTP server bound to `127.0.0.1:<port>`, manages `daemon.pid` and `daemon.port`, blocks until signal or `/api/shutdown`. |
 | `repotier shutdown` | No | Reads `~/.cache/repotier/daemon.port` (falling back to config/default port `45910` if missing), sends `POST http://127.0.0.1:<port>/api/shutdown`, cleans up stale PID/port files if unreachable, and exits `0`. |
 | `repotier update` | Yes | Queries GitHub Releases API (`BaankeyBihari/repotier`) via stdlib `net/http`, downloads and atomically replaces executable if newer, and restarts daemon if previously running. |
+| `repotier scan [dir]` | No | Recursively walks `dir` (defaulting to current working directory) via `filepath.WalkDir`, resolves each discovered `.git` repo/worktree via `DiscoverRepoRoot` (deduped in-memory) into `repos.json`, prunes `.git`, `node_modules`, `vendor`, `target`, `dist`, and hidden directories, and prints discovered paths without starting the daemon. |
 
 ### Pre-Run Hook Execution Order
 

@@ -407,3 +407,65 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("expected README.md to document curl install command for scripts/install.sh: %v", err)
 	}
 }
+
+// @spec CLI-CMD-003
+func TestCLIScanCommand(t *testing.T) {
+	store := NewStore(t.TempDir(), t.TempDir())
+	scanRoot, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create repoA + linked worktree inside scanRoot, repoB nested under subdir, and a decoy inside node_modules
+	repoA := filepath.Join(scanRoot, "repo-a")
+	_ = os.MkdirAll(repoA, 0755)
+	mustGit(t, repoA, "init", "-b", "main")
+	mustGit(t, repoA, "config", "user.email", "test@example.com")
+	mustGit(t, repoA, "config", "user.name", "Test User")
+	_ = os.WriteFile(filepath.Join(repoA, "README.md"), []byte("a\n"), 0644)
+	mustGit(t, repoA, "add", "README.md")
+	mustGit(t, repoA, "commit", "-m", "init a")
+	wtA := filepath.Join(scanRoot, "repo-a-wt")
+	mustGit(t, repoA, "worktree", "add", "-b", "feat/wt", wtA)
+
+	repoB := filepath.Join(scanRoot, "group", "repo-b")
+	_ = os.MkdirAll(repoB, 0755)
+	mustGit(t, repoB, "init", "-b", "main")
+
+	decoy := filepath.Join(scanRoot, "node_modules", "decoy-repo")
+	_ = os.MkdirAll(filepath.Join(decoy, ".git"), 0755)
+
+	var stdout, stderr bytes.Buffer
+	daemonCalled := false
+	browserCalled := false
+	env := &CLIEnv{
+		Store:   store,
+		CWD:     scanRoot,
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		Version: "dev",
+		SpawnDaemon: func(port int) error {
+			daemonCalled = true
+			return nil
+		},
+		BrowserOpen: func(u string) error {
+			browserCalled = true
+			return nil
+		},
+	}
+
+	if code := env.Run([]string{"scan", scanRoot}); code != 0 {
+		t.Fatalf("repotier scan failed with exit %d (stderr=%s)", code, stderr.String())
+	}
+	if daemonCalled || browserCalled {
+		t.Fatalf("scan must not start daemon or open browser")
+	}
+
+	repos, err := store.ListRepos()
+	if err != nil || len(repos) != 2 {
+		t.Fatalf("expected 2 deduplicated repos after scan, got %d (%+v, err=%v)", len(repos), repos, err)
+	}
+	if !strings.Contains(stdout.String(), "2 repositories") {
+		t.Fatalf("expected summary count in stdout, got %q", stdout.String())
+	}
+}
