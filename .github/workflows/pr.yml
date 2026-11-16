@@ -16,28 +16,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
+      - name: Setup mise tools (Go 1.27, golangci-lint v2, markdownlint-cli2)
+        uses: jdx/mise-action@v2
 
-      - name: Run Go fmt and vet
+      - name: Run Go fmt, vet, golangci-lint, and markdownlint-cli2
         run: |
           test -z "$(gofmt -l cmd/repotier)"
           go vet ./cmd/repotier/...
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: ./cmd/repotier/...
-
-      - name: Run markdownlint-cli2
-        uses: DavidAnson/markdownlint-cli2-action@v19
-        with:
-          globs: |
-            **/*.md
-            #.claude/**
+          golangci-lint run ./cmd/repotier/...
+          markdownlint-cli2 "**/*.md" "#.claude/**"
 
       - name: Run tests
         run: go test -timeout 15s ./cmd/repotier/...
