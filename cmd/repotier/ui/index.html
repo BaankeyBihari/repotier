@@ -276,7 +276,6 @@
       <div id="repositoriesLocalOnlyBanner" class="banner info hidden">
         <span>This repository is local-only (no Git remotes configured)</span>
       </div>
-      <div id="repositoriesRemoteSelectorBar" class="remotes-bar hidden"></div>
 
       <div class="card">
         <h2>Workspaces</h2>
@@ -439,6 +438,12 @@
       document.getElementById('warningBanner').classList.add('hidden');
     }
 
+    function defaultRemoteName(remotes) {
+      if (!remotes || remotes.length === 0) return '';
+      const orig = remotes.find(r => r.name === 'origin');
+      return orig ? orig.name : remotes[0].name;
+    }
+
     function switchTab(tab) {
       activeTab = tab;
       document.getElementById('tabWorkspace').classList.toggle('active', tab === 'workspace');
@@ -446,7 +451,16 @@
       document.getElementById('tabSettings').classList.toggle('active', tab === 'settings');
       updateEmptyVsWorkspace();
       if (tab === 'repositories' && activeRepo) {
-        fetchRemoteItems(activeRepo, activeRemoteName);
+        const remotes = currentDetails.remotes || [];
+        if (!activeRemoteName || !remotes.some(r => r.name === activeRemoteName)) {
+          activeRemoteName = defaultRemoteName(remotes);
+        }
+        renderTopDropdown();
+        if (!currentDetails.is_local_only && remotes.length > 0) {
+          fetchRemoteItems(activeRepo, activeRemoteName);
+        }
+      } else {
+        renderTopDropdown();
       }
     }
 
@@ -535,7 +549,7 @@
         syncURLRepo(activeRepo);
       }
 
-      renderRepoSelect(validRepos);
+      renderTopDropdown();
       renderCachedRepos();
       updateEmptyVsWorkspace();
     }
@@ -550,9 +564,41 @@
       window.history.replaceState({}, '', url.toString());
     }
 
-    function renderRepoSelect(validRepos) {
+    function renderTopDropdown() {
       const sel = document.getElementById('repoSelect');
+      const validRepos = allRepos.filter(r => r.exists);
       sel.innerHTML = '';
+
+      if (activeTab === 'repositories') {
+        const remotes = currentDetails.remotes || [];
+        if (!activeRepo || currentDetails.is_local_only || remotes.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = 'local-no-remote';
+          opt.textContent = 'local-no-remote';
+          opt.selected = true;
+          sel.appendChild(opt);
+          sel.disabled = false;
+          sel.onchange = null;
+          return;
+        }
+        if (!activeRemoteName || !remotes.some(r => r.name === activeRemoteName)) {
+          activeRemoteName = defaultRemoteName(remotes);
+        }
+        sel.disabled = false;
+        for (const r of remotes) {
+          const opt = document.createElement('option');
+          opt.value = r.name;
+          opt.textContent = `${r.name} (${r.repo_slug || r.url})`;
+          if (r.name === activeRemoteName) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        sel.onchange = async () => {
+          activeRemoteName = sel.value;
+          await fetchRemoteItems(activeRepo, activeRemoteName);
+        };
+        return;
+      }
+
       if (validRepos.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
@@ -592,6 +638,7 @@
         return;
       }
       currentDetails = data;
+      renderTopDropdown();
       renderRemotesAndLocalBanners();
       renderWorktrees();
       renderRepoWorkspaces();
@@ -638,28 +685,6 @@
         }
       } else {
         wsBar.classList.add('hidden');
-      }
-
-      const repoRemBar = document.getElementById('repositoriesRemoteSelectorBar');
-      repoRemBar.innerHTML = '';
-      if (!isLocal && remotes.length > 0) {
-        repoRemBar.classList.remove('hidden');
-        const label = document.createElement('strong');
-        label.textContent = 'Remote Source:';
-        repoRemBar.appendChild(label);
-        for (const r of remotes) {
-          const btn = document.createElement('button');
-          const isCurrent = (activeRemoteName && r.name === activeRemoteName) || (!activeRemoteName && r.name === remotes[0].name);
-          if (isCurrent) btn.className = 'primary';
-          btn.textContent = `${r.name} (${r.repo_slug || r.url})`;
-          btn.onclick = () => {
-            activeRemoteName = r.name;
-            fetchRemoteItems(activeRepo, r.name);
-          };
-          repoRemBar.appendChild(btn);
-        }
-      } else {
-        repoRemBar.classList.add('hidden');
       }
     }
 
