@@ -282,7 +282,7 @@ func TestWebEditorsResolutionSettingsAndLaunch(t *testing.T) {
 	}
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011, WEB-UI-012
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011, WEB-UI-012, WEB-UI-013
 func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	srv := NewServer(store, 45910, "v1.0.0")
@@ -315,6 +315,15 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"showToast",
 		"activityModal",
 		"activityLog",
+		"activityBadge",
+		"themeSelect",
+		`data-theme="rose-pine"`,
+		`data-theme="rose-pine-dawn"`,
+		`data-theme="solarized-dark"`,
+		`data-theme="solarized-light"`,
+		`data-theme="sky-light"`,
+		`data-theme="zinc-light"`,
+		"repotier.theme",
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",
