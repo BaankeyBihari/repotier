@@ -175,6 +175,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/repos", s.handleDeleteRepos)
 	mux.HandleFunc("GET /api/repo/details", s.handleRepoDetails)
 	mux.HandleFunc("GET /api/repo/remote-items", s.handleRepoRemoteItems)
+	mux.HandleFunc("POST /api/repo/fetch", s.handleRepoFetch)
 	mux.HandleFunc("POST /api/branches/upstream", s.handleSetUpstream)
 	mux.HandleFunc("DELETE /api/branches", s.handleDeleteBranch)
 	mux.HandleFunc("DELETE /api/worktrees", s.handleDeleteWorktree)
@@ -330,6 +331,26 @@ func (s *Server) handleRepoRemoteItems(w http.ResponseWriter, r *http.Request) {
 		resp["error"] = err.Error()
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// @spec WEB-API-014
+func (s *Server) handleRepoFetch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RepoPath string `json:"repo_path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RepoPath) == "" {
+		writeJSONError(w, http.StatusBadRequest, "repo_path is required", "")
+		return
+	}
+	if !IsRepoHealthy(req.RepoPath) {
+		writeJSONError(w, http.StatusBadRequest, "repository path is invalid or unreachable", "")
+		return
+	}
+	if err := FetchRepo(req.RepoPath); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "failed to fetch remotes", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // @spec WEB-API-007

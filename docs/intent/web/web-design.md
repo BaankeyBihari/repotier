@@ -36,6 +36,7 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 | `/api/repos` | `DELETE` | `{"path":"..."}` or `{"prune_missing":true}` | `{"status":"ok"}` |
 | `/api/repo/details` | `GET` | `?path=<url_encoded_path>` | `{"exists":true,"is_local_only":false,"remotes":[...],"worktrees":[...],"branches":[...],"remote_refs":[...]}` |
 | `/api/repo/remote-items` | `GET` | `?path=<url_encoded_path>[&remote=<name>]` | `{"is_local_only":false,"remote":"origin","issues":[...],"prs":[...]}` |
+| `/api/repo/fetch` | `POST` | `{"repo_path":"..."}` | `{"status":"ok"}` (`400` on invalid input/git failure) |
 | `/api/branches/upstream` | `POST` | `{"repo_path":"...","branch":"...","upstream":"..."}` | `{"status":"ok"}` (`400` on invalid input/git failure) |
 | `/api/branches` | `DELETE` | `{"repo_path":"...","branch":"...","force":false}` | `{"branch_deleted":true}` or `409 Conflict` `{"branch_deleted":false,"requires_force":true,"git_error":"..."}` (`400` if checked out in any worktree) |
 | `/api/worktrees` | `DELETE` | `{"repo_path":"...","worktree_path":"...","branch":"...","delete_branch":true,"force":false,"force_worktree":false}` | `{"worktree_removed":true,"branch_deleted":true}` or `409 Conflict` `{"worktree_removed":true,"branch_deleted":false,"requires_force":true,"git_error":"..."}` (`400` on dirty worktree without `force_worktree` or `is_main`) |

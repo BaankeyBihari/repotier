@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009 -->
+<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -255,7 +255,10 @@
       </div>
 
       <div class="card">
-        <h2>Local Branches</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;">Local Branches</h2>
+          <button id="fetchBtn" onclick="fetchActiveRepo()">Fetch (--prune)</button>
+        </div>
         <table>
           <thead>
             <tr>
@@ -665,6 +668,8 @@
       document.getElementById('repositoriesLocalOnlyBanner').classList.toggle('hidden', !isLocal);
       document.getElementById('repoIssuesCard').classList.toggle('hidden', isLocal);
       document.getElementById('repoPRsCard').classList.toggle('hidden', isLocal);
+      const fetchBtn = document.getElementById('fetchBtn');
+      if (fetchBtn) fetchBtn.disabled = isLocal;
 
       const wsBar = document.getElementById('workspaceRemotesBar');
       wsBar.innerHTML = '';
@@ -905,6 +910,32 @@
         showBanner(err.git_error || err.error || 'Failed to update upstream');
       }
       await fetchRepoDetails(activeRepo);
+    }
+
+    async function fetchActiveRepo() {
+      if (!activeRepo) return;
+      const btn = document.getElementById('fetchBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Fetching...';
+      }
+      try {
+        const res = await fetch('/api/repo/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_path: activeRepo })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          showBanner(err.git_error || err.error || 'Failed to fetch remotes');
+        }
+        await fetchRepoDetails(activeRepo);
+      } finally {
+        if (btn) {
+          btn.textContent = 'Fetch (--prune)';
+          btn.disabled = Boolean(currentDetails.is_local_only);
+        }
+      }
     }
 
     async function openWorktreeInEditor(editorId, worktreePath) {

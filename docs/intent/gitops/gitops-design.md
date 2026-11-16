@@ -52,6 +52,8 @@ The `GITOPS` segment encapsulates all interactions with the local `git` CLI (`os
   - Resolves target remote (`origin` by default, or first remote / requested `remoteName`). If the repository has zero remotes (`is_local_only`), returns empty slices immediately.
   - Invokes `gh issue list -R <slug_or_url> --state open --limit 30 --json number,title,url,state,author,updatedAt` and `gh pr list -R <slug_or_url> --state open --limit 30 --json number,title,url,state,headRefName,baseRefName,isDraft,author,updatedAt` (`10s` timeout).
   - If `gh` is not installed or fails and `repo_slug` is a GitHub `owner/repo`, falls back to unauthenticated `GET https://api.github.com/repos/<owner>/<repo>/issues?state=open&per_page=30` (filtering out items with a `pull_request` key) and `GET https://api.github.com/repos/<owner>/<repo>/pulls?state=open&per_page=30`.
+- **Fetch Remotes (`FetchRepo(repoPath string)`):**
+  - Runs `git -C <repoPath> fetch --all --prune` with `GIT_TERMINAL_PROMPT=0` in `cmd.Env` (so unauthenticated HTTPS prompts fail fast instead of hanging the daemon) and a `30s` `context.WithTimeout`.
 - **Available Remote Refs (`ListRemoteRefs(repoPath string)`):**
   - Runs `git -C <repoPath> for-each-ref --format=%(refname:short) refs/remotes/`.
   - Filters out symbolic HEAD refs (`*/HEAD` or bare remote names without a `/` branch component).

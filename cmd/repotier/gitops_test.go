@@ -172,6 +172,33 @@ func TestBranchesAndUpstreams(t *testing.T) {
 	}
 }
 
+// @spec GITOPS-UP-003
+func TestFetchRepoUpdatesTrackingAndPrunes(t *testing.T) {
+	remoteSrc := initTestGitRepo(t)
+	bareRemote := filepath.Join(t.TempDir(), "origin.git")
+	mustGit(t, remoteSrc, "clone", "--bare", remoteSrc, bareRemote)
+
+	localClone := filepath.Join(t.TempDir(), "local")
+	mustGit(t, filepath.Dir(localClone), "clone", bareRemote, localClone)
+
+	// Push a new branch to bareRemote from remoteSrc
+	mustGit(t, remoteSrc, "checkout", "-b", "feat/new-remote")
+	if err := os.WriteFile(filepath.Join(remoteSrc, "r.txt"), []byte("r\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, remoteSrc, "add", "r.txt")
+	mustGit(t, remoteSrc, "commit", "-m", "remote commit")
+	mustGit(t, remoteSrc, "push", bareRemote, "feat/new-remote")
+
+	if err := FetchRepo(localClone); err != nil {
+		t.Fatalf("FetchRepo failed: %v", err)
+	}
+	refs, err := ListRemoteRefs(localClone)
+	if err != nil || len(refs) < 2 {
+		t.Fatalf("expected origin/feat/new-remote after FetchRepo, got %v (err=%v)", refs, err)
+	}
+}
+
 // @spec GITOPS-DEL-001, GITOPS-DEL-002, GITOPS-DEL-003
 func TestDeleteBranchSafetyAndForce(t *testing.T) {
 	repo := initTestGitRepo(t)

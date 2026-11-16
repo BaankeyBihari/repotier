@@ -80,7 +80,7 @@ func TestWebHealthAndShutdownEndpoints(t *testing.T) {
 	}
 }
 
-// @spec WEB-API-004, WEB-API-005, WEB-API-006, WEB-API-007, WEB-API-013
+// @spec WEB-API-004, WEB-API-005, WEB-API-006, WEB-API-007, WEB-API-013, WEB-API-014
 func TestWebReposDetailsAndUpstreamEndpoints(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	repo := initTestGitRepo(t)
@@ -154,6 +154,14 @@ func TestWebReposDetailsAndUpstreamEndpoints(t *testing.T) {
 	h.ServeHTTP(recUp, httptest.NewRequest(http.MethodPost, "/api/branches/upstream", bytes.NewReader(upBody)))
 	if recUp.Code != http.StatusOK {
 		t.Fatalf("POST /api/branches/upstream = %d (%s)", recUp.Code, recUp.Body.String())
+	}
+
+	// POST /api/repo/fetch
+	fetchBody, _ := json.Marshal(map[string]string{"repo_path": repo})
+	recFetch := httptest.NewRecorder()
+	h.ServeHTTP(recFetch, httptest.NewRequest(http.MethodPost, "/api/repo/fetch", bytes.NewReader(fetchBody)))
+	if recFetch.Code != http.StatusOK {
+		t.Fatalf("POST /api/repo/fetch = %d (%s)", recFetch.Code, recFetch.Body.String())
 	}
 }
 
@@ -274,7 +282,7 @@ func TestWebEditorsResolutionSettingsAndLaunch(t *testing.T) {
 	}
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010
 func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	srv := NewServer(store, 45910, "v1.0.0")
@@ -298,6 +306,7 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"Shutdown Daemon",
 		"/api/worktrees/open",
 		"/api/branches/upstream",
+		"/api/repo/fetch",
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",

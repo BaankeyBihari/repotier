@@ -530,6 +530,21 @@ func SetBranchUpstream(repoPath, branch, upstream string) error {
 	return nil
 }
 
+// @spec GITOPS-UP-003
+func FetchRepo(repoPath string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "fetch", "--all", "--prune")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return &GitError{Kind: err, Stderr: strings.TrimSpace(stderr.String())}
+	}
+	return nil
+}
+
 // @spec GITOPS-DEL-001, GITOPS-DEL-002, GITOPS-DEL-003
 func DeleteBranch(repoPath, branch string, force bool) error {
 	wts, err := ListWorktrees(repoPath)
