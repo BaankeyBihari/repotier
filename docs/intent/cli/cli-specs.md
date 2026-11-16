@@ -20,8 +20,9 @@
 - [x] **CLI-DAEMON-003**: When `repotier shutdown` is invoked and `POST http://127.0.0.1:<port>/api/shutdown` succeeds with `202 Accepted`, the CLI shall poll `GET /api/health` for up to `5s` until unreachable, print a shutdown confirmation message, and exit `0`.
 - [x] **CLI-DAEMON-004**: If `repotier shutdown` cannot connect to `http://127.0.0.1:<port>/api/shutdown`, then the CLI shall remove any stale `~/.cache/repotier/daemon.pid` and `~/.cache/repotier/daemon.port` files, print `"Daemon is not running"`, and exit `0`.
 
-## Self-Update
+## Self-Update & Build Tooling
 
-- [x] **CLI-UPDATE-001**: When `repotier update` is invoked, the CLI shall query the GitHub Releases API (`BaankeyBihari/repotier/releases/latest`) with a `10s` timeout, and if the latest `tag_name` is newer than the current binary `Version`, download the matching `GOOS`/`GOARCH` asset and atomically replace the current executable via `os.Rename`.
+- [x] **CLI-UPDATE-001**: When `repotier update` is invoked, the CLI shall query the GitHub Releases API (`BaankeyBihari/repotier/releases/latest`) with a `10s` timeout, compare `tag_name` against the current binary `Version` using CalVer `YYYY.MM.N` 3-integer tuple ordering (stripping any leading `v` prefix), and if `tag_name` is newer, download the matching `GOOS`/`GOARCH` asset and atomically replace the current executable via `os.Rename`.
 - [x] **CLI-UPDATE-002**: When `repotier update` replaces the binary while a `repotier daemon` instance was running prior to the update, the CLI shall send `POST /api/shutdown` to stop the old daemon and auto-start the newly updated daemon binary.
+- [x] **CLI-BUILD-001**: The repository shall organize the `repotier` Go package and embedded `ui/index.html` under `cmd/repotier/`, define `mise.toml` tasks (`build`, `clean`, `test`, `lint`, `install`, `hooks`) with `go`, `golangci-lint`, and `pre-commit` tools, and configure `.pre-commit-config.yaml` and `.golangci.yml` to run Go formatting and lint checks on pre-commit.
 - [D] **CLI-UPDATE-003**: If the current `repotier` executable resides on a read-only mount during `repotier update`, then the CLI shall provide a fallback user-writable install path.

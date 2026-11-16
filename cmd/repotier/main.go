@@ -1,8 +1,9 @@
+// @spec CLI-BUILD-001
 package main
 
 import "os"
 
-var Version = "v0.1.0"
+var Version = "2026.11.0"
 
 func main() {
 	store, err := DefaultStore()

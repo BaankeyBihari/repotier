@@ -36,11 +36,11 @@ func TestCLISubcommandDispatchAndValidation(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(store.CacheDir, "daemon.port"), []byte(fmt.Sprintf("%d", port)), 0644)
 
 	env := &CLIEnv{
-		Store:      store,
-		CWD:        repo,
-		Stdout:     &stdout,
-		Stderr:     &stderr,
-		Version:    "v1.0.0",
+		Store:   store,
+		CWD:     repo,
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		Version: "v1.0.0",
 		BrowserOpen: func(u string) error {
 			openedURL = u
 			return nil
@@ -66,9 +66,22 @@ func TestCLISubcommandDispatchAndValidation(t *testing.T) {
 	}
 }
 
+func writeIsolatedPortConfig(t *testing.T, store *Store) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return DefaultPort
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+	_ = os.WriteFile(filepath.Join(store.ConfigDir, "config.json"), []byte(fmt.Sprintf(`{"port":%d}`, port)), 0644)
+	return port
+}
+
 // @spec CLI-HOOK-001, CLI-HOOK-002, CLI-HOOK-003, CLI-HOOK-004, CLI-HOOK-005
 func TestCLIPreRunHookDiscoveryPortAndAutoStart(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
+	_ = writeIsolatedPortConfig(t, store)
 	nonGitDir := t.TempDir()
 
 	// Write a stale daemon.port (port 1 is unreachable)
@@ -110,6 +123,7 @@ func TestCLIPreRunHookDiscoveryPortAndAutoStart(t *testing.T) {
 
 	// Startup timeout error when daemon fails to become healthy
 	storeFail := NewStore(t.TempDir(), t.TempDir())
+	_ = writeIsolatedPortConfig(t, storeFail)
 	envFail := &CLIEnv{
 		Store:   storeFail,
 		CWD:     nonGitDir,
@@ -128,6 +142,7 @@ func TestCLIPreRunHookDiscoveryPortAndAutoStart(t *testing.T) {
 // @spec CLI-DAEMON-001, CLI-DAEMON-002, CLI-DAEMON-003, CLI-DAEMON-004
 func TestCLIDaemonLifecycleAndShutdown(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
+	_ = writeIsolatedPortConfig(t, store)
 	var stdout, stderr bytes.Buffer
 	env := &CLIEnv{
 		Store:   store,
@@ -211,6 +226,7 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 	_ = tw.Close()
 	_ = gz.Close()
 
+	var remoteTag = "v2026.11.2"
 	var apiSrv *httptest.Server
 	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/asset.tar.gz" {
@@ -218,7 +234,7 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"tag_name": "v2.0.0",
+			"tag_name": remoteTag,
 			"assets": []map[string]any{
 				{
 					"name":                 "repotier_darwin_arm64.tar.gz",
@@ -240,8 +256,21 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 		ReleaseAPIURL: apiSrv.URL,
 		GOOS:          "darwin",
 		GOARCH:        "arm64",
-		Version:       "v1.0.0",
+		Version:       "2026.11.10",
 	}
+
+	// 1. CalVer tuple check: current 2026.11.10 > remote v2026.11.2 -> must NOT downgrade
+	if err := env.RunUpdate(); err != nil {
+		t.Fatalf("RunUpdate(no-downgrade) failed: %v", err)
+	}
+	afterNoOp, err := os.ReadFile(fakeExec)
+	if err != nil || string(afterNoOp) != "old-binary" {
+		t.Fatalf("expected binary NOT to downgrade when current 2026.11.10 > remote v2026.11.2, got %q", afterNoOp)
+	}
+
+	// 2. CalVer tuple check: current 2026.11.2 < remote v2026.11.10 -> must update & restart daemon
+	env.Version = "2026.11.2"
+	remoteTag = "v2026.11.10"
 	go func() { _ = env.RunDaemon(0, stopCh) }()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -266,5 +295,37 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 	}
 	if !restarted {
 		t.Fatalf("expected running daemon to be restarted after self-update")
+	}
+}
+
+// @spec CLI-BUILD-001
+func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(cwd) != "repotier" || filepath.Base(filepath.Dir(cwd)) != "cmd" {
+		t.Fatalf("expected package to reside in cmd/repotier, got %s", cwd)
+	}
+	repoRoot := filepath.Clean(filepath.Join(cwd, "..", ".."))
+
+	miseBytes, err := os.ReadFile(filepath.Join(repoRoot, "mise.toml"))
+	if err != nil {
+		t.Fatalf("missing mise.toml: %v", err)
+	}
+	miseText := string(miseBytes)
+	for _, want := range []string{"golangci-lint", "pre-commit", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
+		if !strings.Contains(miseText, want) {
+			t.Fatalf("mise.toml missing %q", want)
+		}
+	}
+
+	pcBytes, err := os.ReadFile(filepath.Join(repoRoot, ".pre-commit-config.yaml"))
+	if err != nil || !strings.Contains(string(pcBytes), "golangci-lint") {
+		t.Fatalf("missing or incomplete .pre-commit-config.yaml: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(repoRoot, ".golangci.yml")); err != nil {
+		t.Fatalf("missing .golangci.yml: %v", err)
 	}
 }

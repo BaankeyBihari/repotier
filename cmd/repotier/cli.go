@@ -387,7 +387,7 @@ func (env *CLIEnv) RunUpdate() error {
 		return err
 	}
 
-	if release.TagName == "" || release.TagName == env.Version {
+	if release.TagName == "" || !isNewerVersion(release.TagName, env.Version) {
 		if env.Stdout != nil {
 			fmt.Fprintf(env.Stdout, "repotier is already up to date (%s)\n", env.Version)
 		}
@@ -458,6 +458,40 @@ func (env *CLIEnv) RunUpdate() error {
 		}
 	}
 	return nil
+}
+
+func parseCalVer(v string) ([3]int, bool) {
+	clean := strings.TrimPrefix(strings.TrimSpace(v), "v")
+	parts := strings.Split(clean, ".")
+	if len(parts) != 3 {
+		return [3]int{}, false
+	}
+	var out [3]int
+	for i := 0; i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil || n < 0 {
+			return [3]int{}, false
+		}
+		out[i] = n
+	}
+	return out, true
+}
+
+func isNewerVersion(remoteTag, currentVersion string) bool {
+	rem, remOK := parseCalVer(remoteTag)
+	cur, curOK := parseCalVer(currentVersion)
+	if remOK && curOK {
+		for i := 0; i < 3; i++ {
+			if rem[i] != cur[i] {
+				return rem[i] > cur[i]
+			}
+		}
+		return false
+	}
+	if remOK && !curOK {
+		return true
+	}
+	return strings.TrimPrefix(remoteTag, "v") != strings.TrimPrefix(currentVersion, "v")
 }
 
 func writeUpdatedBinary(tmpPath, assetName string, r io.Reader) error {

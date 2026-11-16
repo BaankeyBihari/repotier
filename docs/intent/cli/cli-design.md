@@ -57,11 +57,25 @@ When `repotier daemon [--port <port>]` starts:
 - On `linux`: `exec.Command("xdg-open", targetURL).Start()`
 - Query parameter: when repository discovery found a valid canonical path, append `?repo=` + `url.QueryEscape(canonicalPath)`.
 
-## Self-Update (`repotier update`)
+## Self-Update, CalVer Versioning & Developer Tooling (`mise.toml` / `pre-commit`)
 
+`repotier` uses **CalVer (`YYYY.MM.N`)** versioning (e.g., `2026.11.1`, or Git tag `v2026.11.1`), injected at build time via `-ldflags "-X main.Version=..."` (defaulting to `2026.11.0` for local dev builds). All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
+
+### Build, Clean, Lint & Pre-Commit Tooling
+- **`mise.toml` Tools:** `go = "1.22"`, `golangci-lint = "latest"`, `pre-commit = "latest"`.
+- **`mise.toml` Tasks:**
+  - `build`: `go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier`
+  - `clean`: `rm -f repotier coverage.out && go clean -testcache`
+  - `test`: `go test -timeout 15s ./cmd/repotier/...`
+  - `lint`: `golangci-lint run ./cmd/repotier/...`
+  - `install`: `go install -ldflags "-X main.Version=${VERSION}" ./cmd/repotier`
+  - `hooks`: `pre-commit install`
+- **Pre-Commit Hook (`.pre-commit-config.yaml` & `.golangci.yml`):** Executes `gofmt`, `go vet`, and `golangci-lint run ./cmd/repotier/...` before commits.
+
+### Self-Update Flow (`repotier update`)
 1. Probe whether daemon is currently healthy on active port (`wasRunning`).
-2. Query `GET https://api.github.com/repos/BaankeyBihari/repotier/releases/latest` (`10s` timeout) and compare `tag_name` against build-time `Version` (`v0.1.0` default or `-ldflags "-X main.Version=..."`).
-3. If `tag_name == Version` or not newer, print confirmation and exit `0`.
+2. Query `GET https://api.github.com/repos/BaankeyBihari/repotier/releases/latest` (`10s` timeout) and compare `tag_name` against build-time `Version` by stripping any leading `v` prefix and comparing the parsed 3-integer tuple `(YYYY, MM, N)` so `2026.11.10 > 2026.11.2`.
+3. If `tag_name` is not newer than `Version`, print confirmation and exit `0`.
 4. Locate matching asset for `runtime.GOOS` and `runtime.GOARCH` (supporting `.tar.gz` archive or raw binary asset), stream and extract to a temporary file in `filepath.Dir(execPath)`, set mode `0755`, and atomically replace via `os.Rename(tmpPath, execPath)`.
 5. If `wasRunning` is true, send `POST /api/shutdown`, wait until `/api/health` fails (up to `5s`), and spawn the updated binary via the auto-start flow.
 
@@ -72,6 +86,7 @@ When `repotier daemon [--port <port>]` starts:
 | **CLI Flag & Subcommand Parsing** | Stdlib `os.Args` switch + `flag.NewFlagSet` for `daemon --port` | `github.com/spf13/cobra` (`Spec.md` §8) | Only 4 subcommands and 1 flag exist; stdlib `flag` avoids external CLI dependencies and boilerplate files. |
 | **Listener Bind Before PID/Port Write** | Bind `net.Listen("tcp", "127.0.0.1:<port>")` first, then write `daemon.pid` / `daemon.port` | Write PID/port files before binding socket | Prevents a duplicate `repotier daemon` invocation that fails with `EADDRINUSE` from overwriting or deleting the running daemon's PID and port files. |
 | **Self-Update Implementation** | Stdlib `net/http` GitHub Releases API + `archive/tar` + `compress/gzip` + atomic `os.Rename` | `github.com/creativeprojects/go-selfupdate` | Eliminates ~30 transitive third-party dependencies while satisfying GitHub release check, atomic binary swap, and daemon restart in ~50 lines of standard library code. |
+| **Versioning Scheme & Toolchain (`mise.toml`)** | CalVer `YYYY.MM.N` (3-int tuple comparison, optional `v` prefix stripped) + `mise.toml` (`go = "1.22"`, `build`/`test`/`install` tasks) | SemVer `vX.Y.Z` or lexicographical string comparison | Fits a continuous-release CLI/daemon without arbitrary major/minor bumps; tuple comparison prevents `2026.11.10 < 2026.11.2` lexical bugs in 15 lines of stdlib code. |
 
 ## Open Questions & Future Decisions
 

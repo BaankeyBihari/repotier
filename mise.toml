@@ -1,0 +1,31 @@
+[tools]
+go = "1.22"
+golangci-lint = "latest"
+pre-commit = "latest"
+
+[env]
+VERSION = "2026.11.1"
+
+[tasks.build]
+description = "Build repotier binary from ./cmd/repotier with CalVer (YYYY.MM.N) version injected"
+run = 'go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier'
+
+[tasks.clean]
+description = "Remove compiled binary artifacts and test cache"
+run = "rm -f repotier coverage.out && go clean -testcache"
+
+[tasks.test]
+description = "Run full test suite"
+run = "go test -timeout 15s ./cmd/repotier/..."
+
+[tasks.lint]
+description = "Run gofmt, go vet, and golangci-lint"
+run = "test -z \"$(gofmt -l cmd/repotier)\" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/..."
+
+[tasks.install]
+description = "Install repotier binary into $GOPATH/bin or ~/go/bin"
+run = 'go install -ldflags "-X main.Version=${VERSION}" ./cmd/repotier'
+
+[tasks.hooks]
+description = "Install git pre-commit hooks"
+run = "pre-commit install"

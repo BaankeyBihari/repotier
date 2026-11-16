@@ -14,3 +14,11 @@ DEFERRED: Cross-filesystem read-only mount fallback on `update`; XDG env overrid
 WHY: (1) Prevent silent worktree directory deletion from `DELETE /api/branches` by routing linked-worktree branch deletion in UI through the Worktree Removal Modal (`DELETE /api/worktrees`) with `Also delete local branch` pre-checked; (2) prevent stale `daemon.port` from overriding `config.json` port on auto-start; (3) allow Settings 'Test Launch' to work with zero cached repos by falling back to `os.UserHomeDir()` when `worktree_path` is empty/`~`; (4) avoid holding `repos.lock` across `git` health-check subprocesses.
 ALTERNATIVES: Implicit worktree removal inside `DELETE /api/branches`; reusing stale `daemon.port` on spawn; disabling Test Launch when cache is empty; holding `Flock` during `git` subprocesses.
 DEFERRED: None.
+## 2026-11-16 - CalVer (YYYY.MM.N) & mise.toml Toolchain/Task Config
+WHY: CalVer `YYYY.MM.N` (git tag `vYYYY.MM.N`, parsed as `[3]int` tuple `[year, month, release_no]`) fits a continuous-delivery CLI/daemon better than arbitrary SemVer major/minor bumps and avoids string-sort bugs (`2026.11.10 > 2026.11.2`). `mise.toml` pins `go = "1.22"` and standardizes `build`, `test`, and `install` tasks with `-ldflags "-X main.Version=..."`.
+ALTERNATIVES: Date-based `YYYY.MM.DD`; SemVer `vX.Y.Z`; tools-only `mise.toml`.
+DEFERRED: Automated GitHub Actions release workflow.
+## 2026-11-16 - cmd/repotier Layout, mise Tasks (build/clean/lint), and Pre-Commit Hooks
+WHY: Moving `package main` files and `ui/index.html` into `cmd/repotier/` keeps the repository root clean while ensuring `go build ./cmd/repotier` and `go install .../cmd/repotier@latest` name the binary `repotier` (whereas `src/` would name it `src`). Pinning `golangci-lint` and `pre-commit` in `mise.toml` with `.pre-commit-config.yaml` and `clean`/`build`/`lint` tasks standardizes local quality gates.
+ALTERNATIVES: `src/` directory layout; multi-package `internal/*` layout; custom shell `.git/hooks/pre-commit` without `pre-commit`.
+DEFERRED: None.
