@@ -282,7 +282,7 @@ func TestWebEditorsResolutionSettingsAndLaunch(t *testing.T) {
 	}
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011, WEB-UI-012
 func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	srv := NewServer(store, 45910, "v1.0.0")
@@ -311,6 +311,10 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"/api/settings/logging",
 		"/api/logs",
 		"View Last 100 Lines",
+		"toastContainer",
+		"showToast",
+		"activityModal",
+		"activityLog",
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",

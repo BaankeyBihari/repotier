@@ -239,6 +239,39 @@
       text-align: left;
     }
     .info-tip:hover .info-card, .info-tip:focus .info-card { display: block; }
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 70;
+      max-width: 380px;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      font-size: 0.875rem;
+    }
+    .toast.success { border-color: var(--success); color: #bbf7d0; }
+    .toast.error { border-color: var(--danger); color: #fecaca; }
+    .toast.info { border-color: var(--accent); color: #bae6fd; }
+    .toast-close {
+      background: transparent;
+      border: none;
+      color: inherit;
+      padding: 0 4px;
+      font-size: 1rem;
+      line-height: 1;
+    }
   </style>
 </head>
 <body>
@@ -251,6 +284,7 @@
       <button id="tabWorkspace" class="tab-btn active" onclick="switchTab('workspace')">Workspace</button>
       <button id="tabRepositories" class="tab-btn" onclick="switchTab('repositories')">Repositories</button>
       <button id="tabSettings" class="tab-btn" onclick="switchTab('settings')">Settings</button>
+      <button id="activityBtn" onclick="openActivityModal()">Activity (0)</button>
       <button id="refreshBtn" onclick="refreshAll()">&#x21bb; Refresh</button>
     </div>
   </header>
@@ -503,6 +537,22 @@
     </div>
   </div>
 
+  <!-- Activity Hub Modal -->
+  <div id="activityModal" class="modal-backdrop">
+    <div class="modal" style="max-width:680px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;">Activity Hub (Since Launch)</h3>
+        <div style="display:flex;gap:8px;">
+          <button onclick="clearActivityLog()">Clear</button>
+          <button onclick="closeActivityModal()">Close</button>
+        </div>
+      </div>
+      <div id="activityList" style="max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
   <script>
     let allRepos = [];
     let activeRepo = "";
@@ -514,6 +564,71 @@
     let currentRemoteItems = { is_local_only: false, remote: "", issues: [], prs: [] };
     let modalWT = null;
     let modalBranch = "";
+    let activityLog = [];
+
+    function showToast(msg, kind = 'info') {
+      const time = new Date().toLocaleTimeString();
+      activityLog.unshift({ time, msg, kind });
+      if (activityLog.length > 100) activityLog.pop();
+      updateActivityButton();
+      if (!document.getElementById('activityModal').classList.contains('hidden')) {
+        renderActivityList();
+      }
+
+      const container = document.getElementById('toastContainer');
+      while (container.children.length >= 4) {
+        container.removeChild(container.firstChild);
+      }
+      const el = document.createElement('div');
+      el.className = `toast ${kind}`;
+      const text = document.createElement('span');
+      text.textContent = msg;
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'toast-close';
+      closeBtn.textContent = '×';
+      closeBtn.onclick = () => el.remove();
+      el.appendChild(text);
+      el.appendChild(closeBtn);
+      container.appendChild(el);
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 4000);
+    }
+
+    function updateActivityButton() {
+      const btn = document.getElementById('activityBtn');
+      if (btn) btn.textContent = `Activity (${activityLog.length})`;
+    }
+
+    function openActivityModal() {
+      renderActivityList();
+      document.getElementById('activityModal').classList.add('open');
+    }
+
+    function closeActivityModal() {
+      document.getElementById('activityModal').classList.remove('open');
+    }
+
+    function clearActivityLog() {
+      activityLog = [];
+      updateActivityButton();
+      renderActivityList();
+    }
+
+    function renderActivityList() {
+      const list = document.getElementById('activityList');
+      if (!list) return;
+      list.innerHTML = '';
+      if (activityLog.length === 0) {
+        list.innerHTML = '<p style="color:var(--muted);margin:8px 0;">No notifications recorded in this session yet.</p>';
+        return;
+      }
+      for (const item of activityLog) {
+        const row = document.createElement('div');
+        row.className = `toast ${item.kind}`;
+        row.style.boxShadow = 'none';
+        row.innerHTML = `<span>${escapeHtml(item.msg)}</span><span class="mono" style="color:var(--muted);font-size:0.78rem;white-space:nowrap;">${escapeHtml(item.time)}</span>`;
+        list.appendChild(row);
+      }
+    }
 
     function showBanner(msg) {
       document.getElementById('warningText').textContent = msg;
@@ -989,7 +1104,9 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showBanner(err.git_error || err.error || 'Failed to update upstream');
+        showToast(err.git_error || err.error || 'Failed to update upstream', 'error');
+      } else {
+        showToast(upstream ? `Updated upstream for ${branch} → ${upstream}` : `Unset upstream for ${branch}`, 'success');
       }
       await fetchRepoDetails(activeRepo);
     }
@@ -1009,7 +1126,9 @@
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          showBanner(err.git_error || err.error || 'Failed to fetch remotes');
+          showToast(err.git_error || err.error || 'Failed to fetch remotes', 'error');
+        } else {
+          showToast('Fetched remotes (--prune)', 'success');
         }
         await fetchRepoDetails(activeRepo);
       } finally {
@@ -1028,7 +1147,9 @@
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        showBanner(err.error || 'Failed to launch editor');
+        showToast(err.error || 'Failed to launch editor', 'error');
+      } else {
+        showToast(`Launched ${editorId} for ${worktreePath}`, 'success');
       }
     }
 
@@ -1088,24 +1209,33 @@
       }
       if (!res.ok) {
         const errEl = document.getElementById('wtModalError');
-        errEl.textContent = data.git_error || data.error || 'Failed to remove worktree';
+        const msg = data.git_error || data.error || 'Failed to remove worktree';
+        errEl.textContent = msg;
         errEl.classList.remove('hidden');
+        showToast(msg, 'error');
         return;
       }
+      const removedPath = modalWT.path;
       closeWorktreeModal();
+      showToast(`Removed worktree ${removedPath}`, 'success');
       await fetchRepoDetails(activeRepo);
     }
 
     async function retryForceDeleteBranchFromWT() {
       if (!modalWT || !modalWT.branch) return;
+      const branchName = modalWT.branch;
       const res = await fetch('/api/branches', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo_path: activeRepo, branch: modalWT.branch, force: true })
+        body: JSON.stringify({ repo_path: activeRepo, branch: branchName, force: true })
       });
       if (res.ok) {
         closeWorktreeModal();
+        showToast(`Force-deleted branch ${branchName}`, 'success');
         await fetchRepoDetails(activeRepo);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.git_error || err.error || `Failed to force-delete ${branchName}`, 'error');
       }
     }
 
@@ -1143,11 +1273,15 @@
       }
       if (!res.ok) {
         const errEl = document.getElementById('brModalError');
-        errEl.textContent = data.git_error || data.error || 'Failed to delete branch';
+        const msg = data.git_error || data.error || 'Failed to delete branch';
+        errEl.textContent = msg;
         errEl.classList.remove('hidden');
+        showToast(msg, 'error');
         return;
       }
+      const deletedBranch = modalBranch;
       closeBranchModal();
+      showToast(`Deleted branch ${deletedBranch}`, 'success');
       await fetchRepoDetails(activeRepo);
     }
 
@@ -1178,22 +1312,32 @@
     }
 
     async function removeCachedRepo(path) {
-      await fetch('/api/repos', {
+      const res = await fetch('/api/repos', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path })
       });
+      if (!res.ok) {
+        showToast(`Failed to remove ${path}`, 'error');
+        return;
+      }
+      showToast(`Removed ${path} from cache`, 'success');
       if (activeRepo === path) activeRepo = '';
       await fetchRepos('');
       if (activeRepo) await fetchRepoDetails(activeRepo);
     }
 
     async function pruneMissingRepos() {
-      await fetch('/api/repos', {
+      const res = await fetch('/api/repos', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prune_missing: true })
       });
+      if (!res.ok) {
+        showToast('Failed to prune unreachable repositories', 'error');
+        return;
+      }
+      showToast('Pruned unreachable repositories', 'success');
       await fetchRepos(activeRepo);
     }
 
@@ -1224,17 +1368,23 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showBanner(data.error || 'Failed to save editor overrides');
+        showToast(data.error || 'Failed to save editor overrides', 'error');
         return;
       }
       editors = data.editors || editors;
       renderSettingsEditors();
       renderWorktrees();
+      showToast('Saved editor overrides', 'success');
     }
 
     async function shutdownDaemon() {
-      await fetch('/api/shutdown', { method: 'POST' });
-      document.getElementById('daemonInfoText').textContent = 'Daemon stopped.';
+      const res = await fetch('/api/shutdown', { method: 'POST' });
+      if (res.ok) {
+        document.getElementById('daemonInfoText').textContent = 'Daemon stopped.';
+        showToast('Daemon shutdown requested', 'info');
+      } else {
+        showToast('Failed to stop daemon', 'error');
+      }
     }
 
     async function fetchLoggingConfig() {
@@ -1265,10 +1415,11 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showBanner(data.error || 'Failed to save logging settings');
+        showToast(data.error || 'Failed to save logging settings', 'error');
         return;
       }
       await fetchLoggingConfig();
+      showToast('Saved logging settings', 'success');
     }
 
     async function openLogsModal() {
