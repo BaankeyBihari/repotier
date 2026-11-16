@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -356,7 +358,123 @@ func (env *CLIEnv) spawnDetachedDaemon(port int) error {
 	return nil
 }
 
-// @spec CLI-DAEMON-001, CLI-DAEMON-002
+// @spec CLI-DAEMON-005
+type rotatingWriter struct {
+	mu         sync.Mutex
+	path       string
+	maxBytes   int64
+	maxBackups int
+	file       *os.File
+	size       int64
+}
+
+func newRotatingWriter(path string, maxBytes int64, maxBackups int) (*rotatingWriter, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, err
+	}
+	rw := &rotatingWriter{
+		path:       path,
+		maxBytes:   maxBytes,
+		maxBackups: maxBackups,
+	}
+	if err := rw.openExistingOrNewLocked(); err != nil {
+		return nil, err
+	}
+	return rw, nil
+}
+
+func (rw *rotatingWriter) openExistingOrNewLocked() error {
+	f, err := os.OpenFile(rw.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return err
+	}
+	rw.file = f
+	rw.size = info.Size()
+	return nil
+}
+
+func (rw *rotatingWriter) SetLimits(maxSizeMB, maxBackups int) {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+	if maxSizeMB >= 1 {
+		rw.maxBytes = int64(maxSizeMB) * 1024 * 1024
+	}
+	if maxBackups >= 0 {
+		rw.maxBackups = maxBackups
+	}
+}
+
+func (rw *rotatingWriter) Write(p []byte) (int, error) {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+
+	if rw.file == nil {
+		if err := rw.openExistingOrNewLocked(); err != nil {
+			return 0, err
+		}
+	}
+	if rw.maxBytes > 0 && rw.size+int64(len(p)) > rw.maxBytes {
+		if err := rw.rotateLocked(); err != nil {
+			return 0, err
+		}
+	}
+	n, err := rw.file.Write(p)
+	rw.size += int64(n)
+	return n, err
+}
+
+func (rw *rotatingWriter) rotateLocked() error {
+	if rw.file != nil {
+		_ = rw.file.Close()
+		rw.file = nil
+	}
+	if rw.maxBackups > 0 {
+		for i := rw.maxBackups - 1; i >= 1; i-- {
+			src := fmt.Sprintf("%s.%d", rw.path, i)
+			dst := fmt.Sprintf("%s.%d", rw.path, i+1)
+			if _, err := os.Stat(src); err == nil {
+				_ = os.Rename(src, dst)
+			}
+		}
+		if _, err := os.Stat(rw.path); err == nil {
+			_ = os.Rename(rw.path, rw.path+".1")
+		}
+	} else {
+		_ = os.Remove(rw.path)
+	}
+	return rw.openExistingOrNewLocked()
+}
+
+func (rw *rotatingWriter) Close() error {
+	rw.mu.Lock()
+	defer rw.mu.Unlock()
+	if rw.file != nil {
+		err := rw.file.Close()
+		rw.file = nil
+		return err
+	}
+	return nil
+}
+
+func parseSlogLevel(lvl string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(lvl)) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// @spec CLI-DAEMON-001, CLI-DAEMON-002, CLI-DAEMON-005
 func (env *CLIEnv) RunDaemon(port int, stopCh <-chan struct{}) error {
 	if err := os.MkdirAll(env.Store.CacheDir, 0755); err != nil {
 		return err
@@ -383,7 +501,25 @@ func (env *CLIEnv) RunDaemon(port int, stopCh <-chan struct{}) error {
 		_ = os.Remove(portFile)
 	}()
 
+	cfg, _ := env.Store.LoadConfig()
+	logPath := filepath.Join(env.Store.CacheDir, "daemon.log")
+	rw, logErr := newRotatingWriter(logPath, int64(cfg.Logging.MaxSizeMB)*1024*1024, cfg.Logging.MaxBackups)
+	var levelVar slog.LevelVar
+	levelVar.Set(parseSlogLevel(cfg.Logging.Level))
+
+	var logger *slog.Logger
+	if logErr == nil {
+		defer rw.Close()
+		logger = slog.New(slog.NewTextHandler(rw, &slog.HandlerOptions{Level: &levelVar}))
+	} else {
+		logger = slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: &levelVar}))
+	}
+	logger.Info("daemon started", "pid", os.Getpid(), "port", actualPort, "version", env.Version, "log_level", cfg.Logging.Level)
+
 	srv := NewServer(env.Store, actualPort, env.Version)
+	srv.Logger = logger
+	srv.LevelVar = &levelVar
+	srv.LogWriter = rw
 	httpSrv := &http.Server{Handler: srv.Handler()}
 
 	sigCh := make(chan os.Signal, 1)

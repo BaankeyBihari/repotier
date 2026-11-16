@@ -282,7 +282,7 @@ func TestWebEditorsResolutionSettingsAndLaunch(t *testing.T) {
 	}
 }
 
-// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010
+// @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011
 func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	srv := NewServer(store, 45910, "v1.0.0")
@@ -308,6 +308,9 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"/api/branches/upstream",
 		"/api/repo/fetch",
 		"git fetch --all --prune",
+		"/api/settings/logging",
+		"/api/logs",
+		"View Last 100 Lines",
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",
@@ -320,5 +323,47 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		if !strings.Contains(body, tok) {
 			t.Fatalf("embedded ui/index.html missing required UI token %q", tok)
 		}
+	}
+}
+
+// @spec WEB-API-015
+func TestWebLoggingSettingsAndLogsEndpoint(t *testing.T) {
+	store := NewStore(t.TempDir(), t.TempDir())
+	logPath := filepath.Join(store.CacheDir, "daemon.log")
+	_ = os.MkdirAll(store.CacheDir, 0755)
+	_ = os.WriteFile(logPath, []byte("line1\nline2\nline3\n"), 0644)
+
+	srv := NewServer(store, 45910, "dev")
+	h := srv.Handler()
+
+	recGet := httptest.NewRecorder()
+	h.ServeHTTP(recGet, httptest.NewRequest(http.MethodGet, "/api/settings/logging", nil))
+	if recGet.Code != http.StatusOK {
+		t.Fatalf("GET /api/settings/logging = %d", recGet.Code)
+	}
+
+	recBad := httptest.NewRecorder()
+	h.ServeHTTP(recBad, httptest.NewRequest(http.MethodPut, "/api/settings/logging", strings.NewReader(`{"level":"invalid","max_size_mb":5,"max_backups":3}`)))
+	if recBad.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid log level, got %d", recBad.Code)
+	}
+
+	recPut := httptest.NewRecorder()
+	h.ServeHTTP(recPut, httptest.NewRequest(http.MethodPut, "/api/settings/logging", strings.NewReader(`{"level":"debug","max_size_mb":10,"max_backups":2}`)))
+	if recPut.Code != http.StatusOK {
+		t.Fatalf("PUT /api/settings/logging = %d: %s", recPut.Code, recPut.Body.String())
+	}
+
+	recLogs := httptest.NewRecorder()
+	h.ServeHTTP(recLogs, httptest.NewRequest(http.MethodGet, "/api/logs?lines=2", nil))
+	if recLogs.Code != http.StatusOK {
+		t.Fatalf("GET /api/logs = %d: %s", recLogs.Code, recLogs.Body.String())
+	}
+	var logsResp struct {
+		Path  string   `json:"path"`
+		Lines []string `json:"lines"`
+	}
+	if err := json.Unmarshal(recLogs.Body.Bytes(), &logsResp); err != nil || len(logsResp.Lines) != 2 || logsResp.Lines[0] != "line2" || logsResp.Lines[1] != "line3" {
+		t.Fatalf("unexpected /api/logs response: %+v (err=%v)", logsResp, err)
 	}
 }

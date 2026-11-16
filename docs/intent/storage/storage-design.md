@@ -40,14 +40,23 @@ The `STORAGE` segment manages all persistent local state on disk: the discovered
     "windsurf": "",
     "intellij": "",
     "subl": ""
+  },
+  "logging": {
+    "level": "info",
+    "max_size_mb": 5,
+    "max_backups": 3
   }
 }
 ```
 
 - **Defaults & Partial/Corrupt Recovery:**
-  - If `~/.config/repotier/config.json` does not exist, `LoadConfig()` returns default `port: 45910` and empty string overrides for the 5 supported editor IDs (`agy`, `vscode`, `windsurf`, `intellij`, `subl`).
-  - Partial JSON is merged onto the default struct: if `port <= 0` or `port > 65535`, it defaults to `45910`; missing keys in `editor_overrides` default to `""`.
+  - If `~/.config/repotier/config.json` does not exist, `LoadConfig()` returns default `port: 45910`, empty string overrides for the 5 supported editor IDs (`agy`, `vscode`, `windsurf`, `intellij`, `subl`), and default `logging` (`level: "info"`, `max_size_mb: 5`, `max_backups: 3`).
+  - Partial JSON is merged onto the default struct: if `port <= 0` or `port > 65535`, it defaults to `45910`; missing keys in `editor_overrides` default to `""`; invalid or omitted `logging` fields fall back to their defaults.
   - If either `repos.json` or `config.json` contains malformed/corrupted JSON that fails `json.Unmarshal`, `STORAGE` renames the corrupted file to `<filename>.corrupt` and falls back to the empty/default state so the tool remains operable.
+- **Validation on Save (`SaveLoggingConfig(cfg LoggingConfig)`):**
+  - `level` must be one of `"debug"`, `"info"`, `"warn"`, `"error"`.
+  - `max_size_mb` must be in `1..500`; `max_backups` must be in `0..20`.
+  - Invalid values fail validation with an error before mutating `config.json`.
 - **Validation on Save (`SaveEditorOverrides(overrides map[string]string)`):**
   - Unknown editor IDs are rejected with a validation error.
   - For non-empty override paths, a leading `~/` is expanded via `os.UserHomeDir()` before checking `os.Stat(expandedPath)`.

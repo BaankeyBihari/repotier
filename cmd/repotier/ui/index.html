@@ -414,8 +414,50 @@
         <p id="daemonInfoText" class="mono">Loading daemon info...</p>
         <button class="danger" onclick="shutdownDaemon()">Shutdown Daemon</button>
       </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;">Daemon Logging</h2>
+          <div style="display:flex;gap:8px;">
+            <button onclick="openLogsModal()">View Last 100 Lines</button>
+            <button class="primary" onclick="saveLoggingConfig()">Save Logging</button>
+          </div>
+        </div>
+        <p class="mono" style="margin-top:0;color:var(--muted);">Log file: <span id="logFilePath">~/.cache/repotier/daemon.log</span></p>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;">
+          <label>Log Level
+            <select id="logLevelSelect">
+              <option value="debug">debug</option>
+              <option value="info">info</option>
+              <option value="warn">warn</option>
+              <option value="error">error</option>
+            </select>
+          </label>
+          <label>Max Size (MB)
+            <input type="number" id="logMaxSizeInput" min="1" max="500" value="5" style="width:90px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+          </label>
+          <label>Max Backups
+            <input type="number" id="logMaxBackupsInput" min="0" max="20" value="3" style="width:90px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px;">
+          </label>
+        </div>
+      </div>
     </section>
   </main>
+
+  <!-- Daemon Logs Viewer Modal -->
+  <div id="logsModal" class="modal-backdrop">
+    <div class="modal" style="max-width:780px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;">Daemon Logs (Last 100 Lines)</h3>
+        <div style="display:flex;gap:8px;">
+          <button onclick="fetchDaemonLogs()">&#x21bb; Refresh</button>
+          <button onclick="closeLogsModal()">Close</button>
+        </div>
+      </div>
+      <p id="logsModalPath" class="mono" style="margin:0 0 8px 0;color:var(--muted);"></p>
+      <pre id="logsModalBody" class="mono" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;max-height:420px;overflow:auto;margin:0;white-space:pre-wrap;"></pre>
+    </div>
+  </div>
 
   <!-- Worktree Removal Modal -->
   <div id="worktreeModal" class="modal-backdrop">
@@ -537,14 +579,14 @@
     async function loadInitial() {
       const params = new URLSearchParams(window.location.search);
       const requestedRepo = params.get('repo') || '';
-      await Promise.all([fetchHealth(), fetchEditors(), fetchRepos(requestedRepo)]);
+      await Promise.all([fetchHealth(), fetchEditors(), fetchLoggingConfig(), fetchRepos(requestedRepo)]);
       if (activeRepo) {
         await fetchRepoDetails(activeRepo);
       }
     }
 
     async function refreshAll() {
-      await Promise.all([fetchHealth(), fetchEditors(), fetchRepos(activeRepo)]);
+      await Promise.all([fetchHealth(), fetchEditors(), fetchLoggingConfig(), fetchRepos(activeRepo)]);
       if (activeRepo) {
         await fetchRepoDetails(activeRepo);
         if (activeTab === 'repositories') {
@@ -1193,6 +1235,57 @@
     async function shutdownDaemon() {
       await fetch('/api/shutdown', { method: 'POST' });
       document.getElementById('daemonInfoText').textContent = 'Daemon stopped.';
+    }
+
+    async function fetchLoggingConfig() {
+      try {
+        const res = await fetch('/api/settings/logging');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.log_path) document.getElementById('logFilePath').textContent = data.log_path;
+        if (data.logging) {
+          document.getElementById('logLevelSelect').value = data.logging.level || 'info';
+          document.getElementById('logMaxSizeInput').value = data.logging.max_size_mb || 5;
+          document.getElementById('logMaxBackupsInput').value = data.logging.max_backups ?? 3;
+        }
+      } catch (_) {}
+    }
+
+    async function saveLoggingConfig() {
+      const payload = {
+        level: document.getElementById('logLevelSelect').value,
+        max_size_mb: parseInt(document.getElementById('logMaxSizeInput').value, 10) || 5,
+        max_backups: parseInt(document.getElementById('logMaxBackupsInput').value, 10)
+      };
+      if (Number.isNaN(payload.max_backups)) payload.max_backups = 3;
+      const res = await fetch('/api/settings/logging', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showBanner(data.error || 'Failed to save logging settings');
+        return;
+      }
+      await fetchLoggingConfig();
+    }
+
+    async function openLogsModal() {
+      document.getElementById('logsModal').classList.add('open');
+      await fetchDaemonLogs();
+    }
+
+    function closeLogsModal() {
+      document.getElementById('logsModal').classList.remove('open');
+    }
+
+    async function fetchDaemonLogs() {
+      const res = await fetch('/api/logs?lines=100');
+      const data = await res.json().catch(() => ({}));
+      document.getElementById('logsModalPath').textContent = data.path || '';
+      const lines = data.lines || [];
+      document.getElementById('logsModalBody').textContent = lines.length > 0 ? lines.join('\n') : '(No log entries yet)';
     }
 
     function escapeHtml(s) {
