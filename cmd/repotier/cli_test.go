@@ -334,7 +334,7 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing mise.toml: %v", err)
 	}
 	miseText := string(miseBytes)
-	for _, want := range []string{`go = "1.27"`, `VERSION = "dev"`, "golangci-lint", "pre-commit", "markdownlint-cli2", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
+	for _, want := range []string{`go = "1.27"`, `VERSION = "dev"`, "golangci-lint", "pre-commit", "markdownlint-cli2", "typos", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
 		if !strings.Contains(miseText, want) {
 			t.Fatalf("mise.toml missing %q", want)
 		}
@@ -349,7 +349,7 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 	}
 
 	pcBytes, err := os.ReadFile(filepath.Join(repoRoot, ".pre-commit-config.yaml"))
-	if err != nil || !strings.Contains(string(pcBytes), "golangci-lint") || !strings.Contains(string(pcBytes), "markdownlint-cli2") {
+	if err != nil || !strings.Contains(string(pcBytes), "golangci-lint") || !strings.Contains(string(pcBytes), "markdownlint-cli2") || !strings.Contains(string(pcBytes), "typos") {
 		t.Fatalf("missing or incomplete .pre-commit-config.yaml: %v", err)
 	}
 
@@ -358,6 +358,9 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repoRoot, ".markdownlint-cli2.yaml")); err != nil {
 		t.Fatalf("missing .markdownlint-cli2.yaml: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, "_typos.toml")); err != nil {
+		t.Fatalf("missing _typos.toml: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(repoRoot, "SECURITY.md")); err != nil {
 		t.Fatalf("missing SECURITY.md: %v", err)
@@ -378,7 +381,7 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing .github/workflows/pr.yml: %v", err)
 	}
 	prText := string(prBytes)
-	for _, want := range []string{"pull_request", "golangci-lint", "markdownlint-cli2", "go build"} {
+	for _, want := range []string{"pull_request", "golangci-lint", "markdownlint-cli2", "typos", "go build"} {
 		if !strings.Contains(prText, want) {
 			t.Fatalf(".github/workflows/pr.yml missing %q", want)
 		}

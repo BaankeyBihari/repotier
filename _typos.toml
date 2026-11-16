@@ -1,0 +1,11 @@
+[files]
+extend-exclude = [
+  ".claude/**",
+]
+
+[default.extend-words]
+repotier = "repotier"
+BaankeyBihari = "BaankeyBihari"
+agy = "agy"
+gitops = "gitops"
+gomod = "gomod"
