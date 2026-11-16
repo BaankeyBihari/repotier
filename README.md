@@ -18,7 +18,7 @@
 curl -fsSL https://raw.githubusercontent.com/BaankeyBihari/repotier/main/scripts/install.sh | sh
 ```
 
-*(Set `INSTALL_DIR=/custom/bin` or `VERSION=v2026.11.1` if needed.)*
+*(Set `INSTALL_DIR=/custom/bin` or `REPOTIER_VERSION=v2026.11.1` if needed.)*
 
 ### From GitHub Releases
 

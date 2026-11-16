@@ -26,8 +26,8 @@ esac
 
 ARCHIVE="${BINARY}_${OS}_${ARCH}.tar.gz"
 BASE_URL="https://github.com/${REPO}/releases/latest/download"
-if [ -n "${VERSION:-}" ]; then
-  BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+if [ -n "${REPOTIER_VERSION:-}" ]; then
+  BASE_URL="https://github.com/${REPO}/releases/download/${REPOTIER_VERSION}"
 fi
 
 TMP_DIR="$(mktemp -d)"
