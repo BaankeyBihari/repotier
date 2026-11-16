@@ -128,7 +128,9 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
   - **Daemon Logging:** Displays `log_path` (`~/.cache/repotier/daemon.log`), **Log Level** select (`debug`, `info`, `warn`, `error`), **Max Size (MB)**, **Max Backups**, **Save** button (`PUT /api/settings/logging`), and **View Last 100 Lines** button opening a log viewer modal (`GET /api/logs?lines=100`).
 - **Toast Notifications & Activity Hub:**
   - Interactive action outcomes (success and failure) render as stacked, auto-dismissing toast banners (`4s` timeout, max `4` visible) in `#toastContainer`, leaving the top `#warningBanner` reserved for persistent unreachable-repository warnings.
-  - Every toast event is recorded in an in-memory `activityLog` (capped at `100` entries since page launch) viewable via the top-nav **Activity** button modal with a **Clear** action.
+  - Every toast event is recorded in an in-memory `activityLog` (capped at `100` entries since page launch) viewable via the top-nav **Activity bell icon** button (showing a count badge only when count > `0`) with a **Clear** action.
+- **Color Palettes & Theme Switcher:**
+  - Top navigation includes a `#themeSelect` dropdown offering 7 canonical palettes via CSS `[data-theme]` variables, persisted in `localStorage` (`repotier.theme`): **Midnight Slate** (default dark), **Rosé Pine** (dark rose, `#191724` / `#ebbcba`), **Rosé Pine Dawn** (light rose, `#faf4ed` / `#d7827e`), **Solarized Dark** (`#002b36` / `#268bd2`), **Solarized Light** (light gold, `#fdf6e3` / `#b58900`), **Sky Light** (light sky blue, `#f0f9ff` / `#0284c7`), and **Zinc Light** (light grey, `#f4f4f5` / `#3f3f46`).
 
 ## Decisions & Alternatives
 

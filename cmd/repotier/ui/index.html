@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010 -->
+<!-- @spec WEB-UI-001, WEB-UI-002, WEB-UI-003, WEB-UI-004, WEB-UI-005, WEB-UI-006, WEB-UI-007, WEB-UI-008, WEB-UI-009, WEB-UI-010, WEB-UI-011, WEB-UI-012, WEB-UI-013 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -14,9 +14,137 @@
       --text: #f8fafc;
       --muted: #94a3b8;
       --accent: #38bdf8;
+      --accent-text: #0f172a;
+      --primary-bg: #0284c7;
+      --primary-text: #ffffff;
       --danger: #ef4444;
       --warning: #f59e0b;
       --success: #22c55e;
+      --toast-success: #bbf7d0;
+      --toast-error: #fecaca;
+      --toast-info: #bae6fd;
+      --banner-warn-text: #fde68a;
+      --banner-info-text: #bae6fd;
+    }
+    [data-theme="rose-pine"] {
+      --bg: #191724;
+      --surface: #1f1d2e;
+      --surface-hover: #26233a;
+      --border: #403d52;
+      --text: #e0def4;
+      --muted: #908caa;
+      --accent: #ebbcba;
+      --accent-text: #191724;
+      --primary-bg: #ebbcba;
+      --primary-text: #191724;
+      --danger: #eb6f92;
+      --warning: #f6c177;
+      --success: #9ccfd8;
+      --toast-success: #9ccfd8;
+      --toast-error: #eb6f92;
+      --toast-info: #ebbcba;
+      --banner-warn-text: #f6c177;
+      --banner-info-text: #9ccfd8;
+    }
+    [data-theme="rose-pine-dawn"] {
+      --bg: #faf4ed;
+      --surface: #fffaf3;
+      --surface-hover: #f2e9e1;
+      --border: #dfdad9;
+      --text: #575279;
+      --muted: #797593;
+      --accent: #d7827e;
+      --accent-text: #fffaf3;
+      --primary-bg: #d7827e;
+      --primary-text: #fffaf3;
+      --danger: #b4637a;
+      --warning: #ea9d34;
+      --success: #286983;
+      --toast-success: #286983;
+      --toast-error: #b4637a;
+      --toast-info: #56949f;
+      --banner-warn-text: #79500a;
+      --banner-info-text: #286983;
+    }
+    [data-theme="solarized-dark"] {
+      --bg: #002b36;
+      --surface: #073642;
+      --surface-hover: #0d4654;
+      --border: #586e75;
+      --text: #eee8d5;
+      --muted: #93a1a1;
+      --accent: #268bd2;
+      --accent-text: #fdf6e3;
+      --primary-bg: #268bd2;
+      --primary-text: #fdf6e3;
+      --danger: #dc322f;
+      --warning: #b58900;
+      --success: #859900;
+      --toast-success: #b8d300;
+      --toast-error: #ff8a87;
+      --toast-info: #6ec2ff;
+      --banner-warn-text: #fde68a;
+      --banner-info-text: #93c5fd;
+    }
+    [data-theme="solarized-light"] {
+      --bg: #fdf6e3;
+      --surface: #eee8d5;
+      --surface-hover: #e4ddc8;
+      --border: #d3cbb8;
+      --text: #073642;
+      --muted: #586e75;
+      --accent: #b58900;
+      --accent-text: #fdf6e3;
+      --primary-bg: #b58900;
+      --primary-text: #fdf6e3;
+      --danger: #dc322f;
+      --warning: #cb4b16;
+      --success: #859900;
+      --toast-success: #4d5d00;
+      --toast-error: #a61c1a;
+      --toast-info: #073642;
+      --banner-warn-text: #7c2d12;
+      --banner-info-text: #073642;
+    }
+    [data-theme="sky-light"] {
+      --bg: #f0f9ff;
+      --surface: #ffffff;
+      --surface-hover: #e0f2fe;
+      --border: #bae6fd;
+      --text: #0c4a6e;
+      --muted: #0369a1;
+      --accent: #0284c7;
+      --accent-text: #ffffff;
+      --primary-bg: #0284c7;
+      --primary-text: #ffffff;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --success: #16a34a;
+      --toast-success: #166534;
+      --toast-error: #991b1b;
+      --toast-info: #075985;
+      --banner-warn-text: #92400e;
+      --banner-info-text: #075985;
+    }
+    [data-theme="zinc-light"] {
+      --bg: #f4f4f5;
+      --surface: #ffffff;
+      --surface-hover: #e4e4e7;
+      --border: #d4d4d8;
+      --text: #18181b;
+      --muted: #52525b;
+      --accent: #3f3f46;
+      --accent-text: #ffffff;
+      --primary-bg: #27272a;
+      --primary-text: #ffffff;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --success: #16a34a;
+      --toast-success: #166534;
+      --toast-error: #991b1b;
+      --toast-info: #27272a;
+      --banner-warn-text: #92400e;
+      --banner-info-text: #27272a;
     }
     * { box-sizing: border-box; }
     body {
@@ -65,8 +193,8 @@
     }
     button:hover:not(:disabled) { border-color: var(--accent); }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
-    button.primary { background: #0284c7; border-color: #0284c7; }
-    button.danger { background: #b91c1c; border-color: #b91c1c; }
+    button.primary { background: var(--primary-bg); border-color: var(--primary-bg); color: var(--primary-text); }
+    button.danger { background: #b91c1c; border-color: #b91c1c; color: #ffffff; }
     a.ext-link {
       color: var(--accent);
       text-decoration: none;
@@ -74,7 +202,7 @@
     }
     a.ext-link:hover { text-decoration: underline; }
     .nav-tabs { display: flex; gap: 8px; align-items: center; }
-    .tab-btn.active { background: var(--accent); color: #0f172a; font-weight: 600; }
+    .tab-btn.active { background: var(--accent); color: var(--accent-text); font-weight: 600; }
     main { max-width: 1180px; margin: 20px auto; padding: 0 24px; }
     .banner {
       display: flex;
@@ -85,12 +213,12 @@
       margin-bottom: 16px;
       background: rgba(245, 158, 11, 0.16);
       border: 1px solid var(--warning);
-      color: #fde68a;
+      color: var(--banner-warn-text);
     }
     .banner.info {
       background: rgba(56, 189, 248, 0.12);
       border-color: var(--accent);
-      color: #bae6fd;
+      color: var(--banner-info-text);
     }
     .remotes-bar {
       display: flex;
@@ -261,9 +389,9 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
       font-size: 0.875rem;
     }
-    .toast.success { border-color: var(--success); color: #bbf7d0; }
-    .toast.error { border-color: var(--danger); color: #fecaca; }
-    .toast.info { border-color: var(--accent); color: #bae6fd; }
+    .toast.success { border-color: var(--success); color: var(--toast-success); }
+    .toast.error { border-color: var(--danger); color: var(--toast-error); }
+    .toast.info { border-color: var(--accent); color: var(--toast-info); }
     .toast-close {
       background: transparent;
       border: none;
@@ -271,6 +399,28 @@
       padding: 0 4px;
       font-size: 1rem;
       line-height: 1;
+    }
+    .activity-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+    }
+    .activity-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 18px;
+      text-align: center;
     }
   </style>
 </head>
@@ -284,7 +434,22 @@
       <button id="tabWorkspace" class="tab-btn active" onclick="switchTab('workspace')">Workspace</button>
       <button id="tabRepositories" class="tab-btn" onclick="switchTab('repositories')">Repositories</button>
       <button id="tabSettings" class="tab-btn" onclick="switchTab('settings')">Settings</button>
-      <button id="activityBtn" onclick="openActivityModal()">Activity (0)</button>
+      <button id="activityBtn" class="activity-btn" onclick="openActivityModal()" aria-label="Activity Hub" title="Activity Hub">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <span id="activityBadge" class="activity-badge hidden">0</span>
+      </button>
+      <select id="themeSelect" aria-label="Color Palette" onchange="applyTheme(this.value)">
+        <option value="midnight">Midnight Slate</option>
+        <option value="rose-pine">Rosé Pine</option>
+        <option value="rose-pine-dawn">Rosé Pine Dawn</option>
+        <option value="solarized-dark">Solarized Dark</option>
+        <option value="solarized-light">Solarized Light</option>
+        <option value="sky-light">Sky Light</option>
+        <option value="zinc-light">Zinc Light</option>
+      </select>
       <button id="refreshBtn" onclick="refreshAll()">&#x21bb; Refresh</button>
     </div>
   </header>
@@ -594,8 +759,15 @@
     }
 
     function updateActivityButton() {
-      const btn = document.getElementById('activityBtn');
-      if (btn) btn.textContent = `Activity (${activityLog.length})`;
+      const badge = document.getElementById('activityBadge');
+      if (!badge) return;
+      if (activityLog.length === 0) {
+        badge.classList.add('hidden');
+        badge.textContent = '0';
+      } else {
+        badge.textContent = String(activityLog.length);
+        badge.classList.remove('hidden');
+      }
     }
 
     function openActivityModal() {
@@ -1455,6 +1627,31 @@
       if (document.visibilityState === 'visible') refreshAll();
     });
 
+    function applyTheme(theme) {
+      const legacyMap = {
+        'rose': 'rose-pine-dawn',
+        'light-gold': 'solarized-light',
+        'light-sky': 'sky-light',
+        'light-grey': 'zinc-light'
+      };
+      const t = legacyMap[theme] || theme || 'midnight';
+      if (t === 'midnight') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', t);
+      }
+      const sel = document.getElementById('themeSelect');
+      if (sel) sel.value = t;
+      try { localStorage.setItem('repotier.theme', t); } catch (_) {}
+    }
+
+    function initTheme() {
+      let saved = 'midnight';
+      try { saved = localStorage.getItem('repotier.theme') || 'midnight'; } catch (_) {}
+      applyTheme(saved);
+    }
+
+    initTheme();
     loadInitial();
   </script>
 </body>
