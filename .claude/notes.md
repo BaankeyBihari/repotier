@@ -30,3 +30,7 @@ DEFERRED: Code signing / macOS notarization.
 WHY: GoReleaser strictly enforces SemVer 2.0 and rejects zero-padded CalVer months (`01`..`09`, e.g., `v2027.01.1`) as invalid semantic versions. Native `CGO_ENABLED=0 go build` + `shasum -a 256 > checksums.txt` + `gh release create` supports true `YYYY.MM.N` CalVer with zero extra config files.
 ALTERNATIVES: GoReleaser with unpadded `YYYY.M.N`.
 DEFERRED: Homebrew tap formula generation.
+## 2026-11-16 - Local Builds Use Static 'dev' Version, Releases Use CalVer YYYY.MM.N
+WHY: Setting `var Version = "dev"` in `main.go` and `VERSION = "dev"` in `mise.toml` clearly distinguishes local source builds from official GitHub Release builds (`YYYY.MM.N`) and allows `repotier update` (`!curOK` in `isNewerVersion`) to upgrade local builds to the latest published release.
+ALTERNATIVES: `dev-<short-sha>`; `unstable`; hardcoded `2026.11.1` in `mise.toml`.
+DEFERRED: None.

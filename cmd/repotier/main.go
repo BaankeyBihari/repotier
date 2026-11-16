@@ -3,7 +3,7 @@ package main
 
 import "os"
 
-var Version = "2026.11.0"
+var Version = "dev"
 
 func main() {
 	store, err := DefaultStore()
