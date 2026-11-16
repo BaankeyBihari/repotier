@@ -28,7 +28,7 @@ Developers working across multiple local Git repositories and linked worktrees (
 ## Non-Goals
 
 - **Commit history, staging, diffing, or merge conflict resolution:** `repotier` manages worktrees, local branches, upstreams, and editor launches — not file-level Git staging or log visualization.
-- **Remote network Git operations:** `repotier` does not run `git fetch`, `git pull`, or `git push`; it operates strictly on local refs and cached remote tracking refs (`refs/remotes/`).
+- **Remote pull/push Git operations:** `repotier` does not run `git pull` or `git push`; aside from explicit user-triggered `git fetch --all --prune` to refresh remote tracking deltas, it operates on local refs.
 - **Non-localhost or multi-user hosting:** The HTTP server never binds to `0.0.0.0` or external interfaces.
 - **Custom branch protection policies:** `repotier` does not hardcode protected branch names (`main`, `master`); it enforces only Git's native invariant (the branch checked out in the primary worktree cannot be deleted).
 

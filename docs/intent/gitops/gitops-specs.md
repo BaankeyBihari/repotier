@@ -22,6 +22,7 @@
 - [x] **GITOPS-REM-002**: When `ListRemoteIssuesAndPRs(repoPath, remoteName)` is called for a repository with at least one configured remote, `GITOPS` shall query open issues and pull requests in read-only mode via `gh issue list` and `gh pr list` (falling back to the GitHub REST API `/repos/<owner>/<repo>/issues` and `/pulls` when `gh` is unavailable) and return each item's `number`, `title`, `url`, `state`, `author`, and PR branch metadata.
 - [x] **GITOPS-UP-001**: When `ListRemoteRefs(repoPath)` is called, `GITOPS` shall return all refs from `git -C <repoPath> for-each-ref --format=%(refname:short) refs/remotes/` excluding symbolic `*/HEAD` refs and bare remote names without a `/` branch separator.
 - [x] **GITOPS-UP-002**: When `SetBranchUpstream(repoPath, branch, upstream)` is called with a non-empty `upstream`, `GITOPS` shall execute `git -C <repoPath> branch --set-upstream-to=<upstream> <branch>`; when called with an empty `upstream`, `GITOPS` shall execute `git -C <repoPath> branch --unset-upstream <branch>`.
+- [x] **GITOPS-UP-003**: When `FetchRepo(repoPath)` is called, `GITOPS` shall execute `git -C <repoPath> fetch --all --prune` with `GIT_TERMINAL_PROMPT=0` and a `30s` `context.WithTimeout`.
 
 ## Branch & Worktree Deletion Rules
 
