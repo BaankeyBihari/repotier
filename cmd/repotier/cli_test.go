@@ -334,10 +334,13 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing mise.toml: %v", err)
 	}
 	miseText := string(miseBytes)
-	for _, want := range []string{`go = "1.27"`, "golangci-lint", "pre-commit", "markdownlint-cli2", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
+	for _, want := range []string{`go = "1.27"`, `VERSION = "dev"`, "golangci-lint", "pre-commit", "markdownlint-cli2", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
 		if !strings.Contains(miseText, want) {
 			t.Fatalf("mise.toml missing %q", want)
 		}
+	}
+	if Version != "dev" {
+		t.Fatalf("expected default Version to be \"dev\", got %q", Version)
 	}
 
 	modBytes, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))

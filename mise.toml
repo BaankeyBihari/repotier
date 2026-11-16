@@ -5,10 +5,10 @@ pre-commit = "latest"
 "npm:markdownlint-cli2" = "latest"
 
 [env]
-VERSION = "2026.11.1"
+VERSION = "dev"
 
 [tasks.build]
-description = "Build repotier binary from ./cmd/repotier with CalVer (YYYY.MM.N) version injected"
+description = "Build repotier binary from ./cmd/repotier (defaults to VERSION=dev)"
 run = 'go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier'
 
 [tasks.clean]

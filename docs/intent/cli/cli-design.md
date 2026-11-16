@@ -60,7 +60,7 @@ When `repotier daemon [--port <port>]` starts:
 
 ## Self-Update, CalVer Versioning & Developer Tooling (`mise.toml` / `pre-commit`)
 
-`repotier` uses **CalVer (`YYYY.MM.N`)** versioning (e.g., `2026.11.1`, or Git tag `v2026.11.1`), injected at build time via `-ldflags "-X main.Version=..."` (defaulting to `2026.11.0` for local dev builds). All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
+`repotier` uses static **`"dev"`** for local builds (`var Version = "dev"` in `main.go` and `VERSION = "dev"` in `mise.toml`) and **CalVer (`YYYY.MM.N`)** for official GitHub Releases (e.g., `2026.11.1`, Git tag `v2026.11.1`), injected at release build time via `-ldflags "-X main.Version=${VERSION}"`. All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
 
 ### Build, Clean, Lint & Pre-Commit Tooling
 
