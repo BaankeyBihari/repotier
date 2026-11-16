@@ -22,3 +22,11 @@ DEFERRED: Automated GitHub Actions release workflow.
 WHY: Moving `package main` files and `ui/index.html` into `cmd/repotier/` keeps the repository root clean while ensuring `go build ./cmd/repotier` and `go install .../cmd/repotier@latest` name the binary `repotier` (whereas `src/` would name it `src`). Pinning `golangci-lint` and `pre-commit` in `mise.toml` with `.pre-commit-config.yaml` and `clean`/`build`/`lint` tasks standardizes local quality gates.
 ALTERNATIVES: `src/` directory layout; multi-package `internal/*` layout; custom shell `.git/hooks/pre-commit` without `pre-commit`.
 DEFERRED: None.
+## 2026-11-16 - Auto-CalVer GitHub Release Workflow & Self-Update Contract
+WHY: Auto-computing `vYYYY.MM.N` on `main` pushes in `.github/workflows/release.yml` and packaging `repotier_${GOOS}_${GOARCH}.tar.gz` assets via stdlib cross-compile + `gh release create` ensures every merged change produces a release that `repotier update` can immediately discover and install without manual tag choreography or GoReleaser config bloat.
+ALTERNATIVES: Manual tag-push trigger; GoReleaser action.
+DEFERRED: Code signing / macOS notarization.
+## 2026-11-16 - Native Go Cross-Compile + checksums.txt over GoReleaser
+WHY: GoReleaser strictly enforces SemVer 2.0 and rejects zero-padded CalVer months (`01`..`09`, e.g., `v2027.01.1`) as invalid semantic versions. Native `CGO_ENABLED=0 go build` + `shasum -a 256 > checksums.txt` + `gh release create` supports true `YYYY.MM.N` CalVer with zero extra config files.
+ALTERNATIVES: GoReleaser with unpadded `YYYY.M.N`.
+DEFERRED: Homebrew tap formula generation.

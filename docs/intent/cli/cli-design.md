@@ -62,7 +62,7 @@ When `repotier daemon [--port <port>]` starts:
 `repotier` uses **CalVer (`YYYY.MM.N`)** versioning (e.g., `2026.11.1`, or Git tag `v2026.11.1`), injected at build time via `-ldflags "-X main.Version=..."` (defaulting to `2026.11.0` for local dev builds). All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
 
 ### Build, Clean, Lint & Pre-Commit Tooling
-- **`mise.toml` Tools:** `go = "1.22"`, `golangci-lint = "latest"`, `pre-commit = "latest"`.
+- **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"` (matching `go 1.27` in `go.mod`).
 - **`mise.toml` Tasks:**
   - `build`: `go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier`
   - `clean`: `rm -f repotier coverage.out && go clean -testcache`
@@ -72,11 +72,19 @@ When `repotier daemon [--port <port>]` starts:
   - `hooks`: `pre-commit install`
 - **Pre-Commit Hook (`.pre-commit-config.yaml` & `.golangci.yml`):** Executes `gofmt`, `go vet`, and `golangci-lint run ./cmd/repotier/...` before commits.
 
+### GitHub Actions Build & Release Workflow (`.github/workflows/release.yml`)
+- **Triggers:** `push` to `main` and `workflow_dispatch` (`permissions: contents: write`).
+- **Pipeline Steps:**
+  1. **Verify:** Setup `go-version: stable` (`1.24+` required for macOS 15+ Mach-O `LC_UUID` load command compatibility) and run `go vet ./cmd/repotier/...` and `go test -timeout 15s ./cmd/repotier/...`.
+  2. **Auto-CalVer Tag Calculation:** Compute `YYYY.MM` in UTC, inspect existing `vYYYY.MM.*` Git tags, and increment the monthly release number `N` (starting at `1`, e.g., `VERSION=2026.11.1`, `TAG=v2026.11.1`).
+  3. **Cross-Compile Matrix (`CGO_ENABLED=0`):** Build `cmd/repotier` with `-ldflags "-X main.Version=${VERSION}"` (without `-s -w` so Mach-O `LC_UUID` is preserved on `darwin`) for `darwin/arm64`, `darwin/amd64`, `linux/amd64`, and `linux/arm64`, packaging each binary as `repotier_${GOOS}_${GOARCH}.tar.gz` containing `repotier` at the archive root, and generate `checksums.txt` (`shasum -a 256`).
+  4. **Publish Release:** Create tag and GitHub Release via `gh release create "v${VERSION}" dist/repotier_*.tar.gz dist/checksums.txt --title "v${VERSION}" --generate-notes`.
+
 ### Self-Update Flow (`repotier update`)
 1. Probe whether daemon is currently healthy on active port (`wasRunning`).
-2. Query `GET https://api.github.com/repos/BaankeyBihari/repotier/releases/latest` (`10s` timeout) and compare `tag_name` against build-time `Version` by stripping any leading `v` prefix and comparing the parsed 3-integer tuple `(YYYY, MM, N)` so `2026.11.10 > 2026.11.2`.
+2. Query `GET https://api.github.com/repos/BaankeyBihari/repotier/releases/latest` (`10s` timeout, sending `Accept: application/vnd.github+json` and `User-Agent: repotier/<version>` headers). If the endpoint returns `404 Not Found` (no releases published yet), print confirmation and exit `0`. Compare `tag_name` against build-time `Version` by stripping any leading `v` prefix and comparing the parsed 3-integer tuple `(YYYY, MM, N)` so `2026.11.10 > 2026.11.2`.
 3. If `tag_name` is not newer than `Version`, print confirmation and exit `0`.
-4. Locate matching asset for `runtime.GOOS` and `runtime.GOARCH` (supporting `.tar.gz` archive or raw binary asset), stream and extract to a temporary file in `filepath.Dir(execPath)`, set mode `0755`, and atomically replace via `os.Rename(tmpPath, execPath)`.
+4. Locate matching asset `repotier_<GOOS>_<GOARCH>.tar.gz` for `runtime.GOOS` and `runtime.GOARCH`, stream and extract the `repotier` binary to a temporary file in `filepath.Dir(execPath)`, set mode `0755`, and atomically replace via `os.Rename(tmpPath, execPath)`.
 5. If `wasRunning` is true, send `POST /api/shutdown`, wait until `/api/health` fails (up to `5s`), and spawn the updated binary via the auto-start flow.
 
 ## Decisions & Alternatives

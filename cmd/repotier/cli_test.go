@@ -227,15 +227,26 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 	_ = gz.Close()
 
 	var remoteTag = "v2026.11.2"
+	var return404 = true
+	var gotAcceptHeader string
 	var apiSrv *httptest.Server
 	apiSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/asset.tar.gz" {
 			_, _ = w.Write(tarBuf.Bytes())
 			return
 		}
+		gotAcceptHeader = r.Header.Get("Accept")
+		if return404 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"tag_name": remoteTag,
 			"assets": []map[string]any{
+				{
+					"name":                 "checksums.txt",
+					"browser_download_url": apiSrv.URL + "/checksums.txt",
+				},
 				{
 					"name":                 "repotier_darwin_arm64.tar.gz",
 					"browser_download_url": apiSrv.URL + "/asset.tar.gz",
@@ -258,6 +269,15 @@ func TestCLISelfUpdateAndDaemonRestart(t *testing.T) {
 		GOARCH:        "arm64",
 		Version:       "2026.11.10",
 	}
+
+	// 0. 404 Not Found (no releases published yet) -> graceful no-op
+	if err := env.RunUpdate(); err != nil {
+		t.Fatalf("expected 404 from releases/latest to succeed as no-op, got: %v", err)
+	}
+	if gotAcceptHeader != "application/vnd.github+json" {
+		t.Fatalf("expected Accept: application/vnd.github+json header, got %q", gotAcceptHeader)
+	}
+	return404 = false
 
 	// 1. CalVer tuple check: current 2026.11.10 > remote v2026.11.2 -> must NOT downgrade
 	if err := env.RunUpdate(); err != nil {
@@ -314,10 +334,15 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing mise.toml: %v", err)
 	}
 	miseText := string(miseBytes)
-	for _, want := range []string{"golangci-lint", "pre-commit", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
+	for _, want := range []string{`go = "1.27"`, "golangci-lint", "pre-commit", "[tasks.build]", "[tasks.clean]", "[tasks.lint]", "./cmd/repotier"} {
 		if !strings.Contains(miseText, want) {
 			t.Fatalf("mise.toml missing %q", want)
 		}
+	}
+
+	modBytes, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
+	if err != nil || !strings.Contains(string(modBytes), "go 1.27") {
+		t.Fatalf("expected go.mod to specify go 1.27, got: %s (err=%v)", string(modBytes), err)
 	}
 
 	pcBytes, err := os.ReadFile(filepath.Join(repoRoot, ".pre-commit-config.yaml"))
@@ -327,5 +352,16 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(repoRoot, ".golangci.yml")); err != nil {
 		t.Fatalf("missing .golangci.yml: %v", err)
+	}
+
+	wfBytes, err := os.ReadFile(filepath.Join(repoRoot, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("missing .github/workflows/release.yml: %v", err)
+	}
+	wfText := string(wfBytes)
+	for _, want := range []string{"gh release create", "checksums.txt", "repotier_"} {
+		if !strings.Contains(wfText, want) {
+			t.Fatalf(".github/workflows/release.yml missing %q", want)
+		}
 	}
 }

@@ -367,11 +367,24 @@ func (env *CLIEnv) RunUpdate() error {
 		apiURL = "https://api.github.com/repos/BaankeyBihari/repotier/releases/latest"
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(apiURL)
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "repotier/"+env.Version)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		if env.Stdout != nil {
+			fmt.Fprintln(env.Stdout, "No published releases found")
+		}
+		return nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("release check returned HTTP %d", resp.StatusCode)
 	}
@@ -403,20 +416,38 @@ func (env *CLIEnv) RunUpdate() error {
 		goarch = runtime.GOARCH
 	}
 
+	expectedArchive := fmt.Sprintf("repotier_%s_%s.tar.gz", goos, goarch)
 	var downloadURL, assetName string
 	for _, a := range release.Assets {
-		lower := strings.ToLower(a.Name)
-		if strings.Contains(lower, goos) && strings.Contains(lower, goarch) {
+		if strings.EqualFold(a.Name, expectedArchive) {
 			downloadURL = a.BrowserDownloadURL
 			assetName = a.Name
 			break
 		}
 	}
 	if downloadURL == "" {
+		for _, a := range release.Assets {
+			lower := strings.ToLower(a.Name)
+			if strings.HasSuffix(lower, ".txt") || strings.HasSuffix(lower, ".sha256") {
+				continue
+			}
+			if strings.Contains(lower, goos) && strings.Contains(lower, goarch) {
+				downloadURL = a.BrowserDownloadURL
+				assetName = a.Name
+				break
+			}
+		}
+	}
+	if downloadURL == "" {
 		return fmt.Errorf("no release asset found for %s/%s", goos, goarch)
 	}
 
-	dlResp, err := client.Get(downloadURL)
+	dlReq, err := http.NewRequest(http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return err
+	}
+	dlReq.Header.Set("User-Agent", "repotier/"+env.Version)
+	dlResp, err := client.Do(dlReq)
 	if err != nil {
 		return err
 	}

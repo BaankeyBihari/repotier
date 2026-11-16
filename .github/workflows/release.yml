@@ -1,0 +1,71 @@
+# @spec CLI-BUILD-001
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify formatting, vet, and tests
+        run: |
+          test -z "$(gofmt -l cmd/repotier)"
+          go vet ./cmd/repotier/...
+          go test -timeout 15s ./cmd/repotier/...
+
+      - name: Calculate next CalVer (YYYY.MM.N)
+        id: calver
+        run: |
+          YM=$(date -u +%Y.%m)
+          LAST_N=$(git tag -l "v${YM}.*" | sed "s/^v${YM}\.//" | grep -E '^[0-9]+$' | sort -n | tail -n1 || true)
+          if [ -z "$LAST_N" ]; then
+            NEXT_N=1
+          else
+            NEXT_N=$((LAST_N + 1))
+          fi
+          VERSION="${YM}.${NEXT_N}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Cross-compile release archives and checksums
+        env:
+          VERSION: ${{ steps.calver.outputs.version }}
+        run: |
+          mkdir -p dist build_tmp
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            GOOS=${target%/*}
+            GOARCH=${target#*/}
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+              go build -trimpath -ldflags "-X main.Version=${VERSION}" \
+              -o build_tmp/repotier ./cmd/repotier
+            tar -C build_tmp -czf "dist/repotier_${GOOS}_${GOARCH}.tar.gz" repotier
+            rm -f build_tmp/repotier
+          done
+          (cd dist && shasum -a 256 repotier_*.tar.gz > checksums.txt)
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.calver.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/repotier_*.tar.gz dist/checksums.txt \
+            --title "$TAG" \
+            --generate-notes \
+            --target "${{ github.sha }}"
