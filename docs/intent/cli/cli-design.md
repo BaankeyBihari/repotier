@@ -62,18 +62,22 @@ When `repotier daemon [--port <port>]` starts:
 `repotier` uses **CalVer (`YYYY.MM.N`)** versioning (e.g., `2026.11.1`, or Git tag `v2026.11.1`), injected at build time via `-ldflags "-X main.Version=..."` (defaulting to `2026.11.0` for local dev builds). All Go source files and the embedded `ui/index.html` live in `cmd/repotier/`.
 
 ### Build, Clean, Lint & Pre-Commit Tooling
-- **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"` (matching `go 1.27` in `go.mod`).
+- **`mise.toml` Tools:** `go = "1.27"`, `golangci-lint = "latest"`, `pre-commit = "latest"`, `"npm:markdownlint-cli2" = "latest"` (matching `go 1.27` in `go.mod`).
 - **`mise.toml` Tasks:**
   - `build`: `go build -ldflags "-X main.Version=${VERSION}" -o repotier ./cmd/repotier`
   - `clean`: `rm -f repotier coverage.out && go clean -testcache`
   - `test`: `go test -timeout 15s ./cmd/repotier/...`
-  - `lint`: `golangci-lint run ./cmd/repotier/...`
+  - `lint`: `test -z "$(gofmt -l cmd/repotier)" && go vet ./cmd/repotier/... && golangci-lint run ./cmd/repotier/... && markdownlint-cli2 "**/*.md"`
   - `install`: `go install -ldflags "-X main.Version=${VERSION}" ./cmd/repotier`
   - `hooks`: `pre-commit install`
-- **Pre-Commit Hook (`.pre-commit-config.yaml` & `.golangci.yml`):** Executes `gofmt`, `go vet`, and `golangci-lint run ./cmd/repotier/...` before commits.
+- **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, and `markdownlint-cli2` before commits.
 
-### GitHub Actions Build & Release Workflow (`.github/workflows/release.yml`)
-- **Triggers:** `push` to `main` and `workflow_dispatch` (`permissions: contents: write`).
+### GitHub Actions Pull Request & Release Workflows
+- **PR Verification Workflow (`.github/workflows/pr.yml`):**
+  - **Triggers:** `pull_request` targeting `main` (`permissions: contents: read`).
+  - **Steps:** Runs `gofmt`, `go vet`, `golangci-lint`, `markdownlint-cli2`, `go test -timeout 15s ./cmd/repotier/...`, and `go build -o repotier ./cmd/repotier` (no tagging or release publishing).
+- **Build & Release Workflow (`.github/workflows/release.yml`):**
+  - **Triggers:** `push` to `main` and `workflow_dispatch` (`permissions: contents: write`).
 - **Pipeline Steps:**
   1. **Verify:** Setup `go-version: stable` (`1.24+` required for macOS 15+ Mach-O `LC_UUID` load command compatibility) and run `go vet ./cmd/repotier/...` and `go test -timeout 15s ./cmd/repotier/...`.
   2. **Auto-CalVer Tag Calculation:** Compute `YYYY.MM` in UTC, inspect existing `vYYYY.MM.*` Git tags, and increment the monthly release number `N` (starting at `1`, e.g., `VERSION=2026.11.1`, `TAG=v2026.11.1`).

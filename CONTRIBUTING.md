@@ -7,6 +7,7 @@ Thank you for contributing to `repotier`! This project uses **Linked-Intent Deve
 Tools are managed via [mise](https://mise.jdx.dev/) (configured in [mise.toml](mise.toml)):
 - **Go `1.27`**
 - **`golangci-lint`**
+- **`markdownlint-cli2`**
 - **`pre-commit`**
 
 Install all tools and register the Git pre-commit hooks:
