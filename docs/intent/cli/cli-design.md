@@ -11,7 +11,7 @@ The `CLI` segment owns command-line invocation (`repotier`), pre-run repository 
 
 ## Subcommand Dispatch & Validation
 
-`repotier` accepts an optional positional subcommand (`dashboard`, `daemon`, `shutdown`, `update`, `scan`), defaulting to `dashboard` when invoked with no arguments. Unknown subcommands or unknown flags print usage to `stderr` and exit with code `2`.
+`repotier` accepts an optional positional subcommand (`dashboard`, `daemon`, `shutdown`, `update`, `scan`, `version`, `help`), defaulting to `dashboard` when invoked with no arguments. Unknown subcommands or unknown flags print usage to `stderr` and exit with code `2`.
 
 | Invocation | Runs Pre-Run Hook? | Behavior |
 |---|---|---|
@@ -20,6 +20,8 @@ The `CLI` segment owns command-line invocation (`repotier`), pre-run repository 
 | `repotier shutdown` | No | Reads `~/.cache/repotier/daemon.port` (falling back to config/default port `45910` if missing), sends `POST http://127.0.0.1:<port>/api/shutdown`, cleans up stale PID/port files if unreachable, and exits `0`. |
 | `repotier update` | Yes | Queries GitHub Releases API (`BaankeyBihari/repotier`) via stdlib `net/http`, downloads and atomically replaces executable if newer, and restarts daemon if previously running. |
 | `repotier scan [dir]` | No | Recursively walks `dir` (defaulting to current working directory) via `filepath.WalkDir`, resolves each discovered `.git` repo/worktree via `DiscoverRepoRoot` (deduped in-memory) into `repos.json`, prunes `.git`, `node_modules`, `vendor`, `target`, `dist`, and hidden directories, and prints discovered paths without starting the daemon. |
+| `repotier version` / `-v` / `--version` | No | Prints `repotier <Version>` to `stdout` and exits `0`. |
+| `repotier help` / `-h` / `--help` | No | Prints subcommand usage to `stdout` and exits `0`. |
 
 ### Pre-Run Hook Execution Order
 
@@ -88,7 +90,7 @@ When `repotier daemon [--port <port>]` starts:
 - **Build & Release Workflow (`.github/workflows/release.yml`):**
   - **Triggers:** `push` to `main` (filtered to `cmd/repotier/**`, `go.mod`, `.github/workflows/release.yml`) and `workflow_dispatch` (top-level `permissions: contents: read`, job-level `contents: write`).
 - **Pipeline Steps:**
-  1. **Verify:** Setup `go-version: stable` (`1.24+` required for macOS 15+ Mach-O `LC_UUID` load command compatibility) and run `go vet ./cmd/repotier/...` and `go test -timeout 15s ./cmd/repotier/...`.
+  1. **Verify & Coverage:** Setup `go-version: stable` (`1.24+` required for macOS 15+ Mach-O `LC_UUID` load command compatibility), run `go vet ./cmd/repotier/...` and `go test -timeout 15s -coverprofile=coverage.out ./cmd/repotier/...`, extract total coverage percentage via `go tool cover -func=coverage.out`, and update `coverage.json` on the `badges` orphan branch for `shields.io/endpoint`.
   2. **Auto-CalVer Tag Calculation:** Compute `YYYY.MM` in UTC, inspect existing `vYYYY.MM.*` Git tags, and increment the monthly release number `N` (starting at `1`, e.g., `VERSION=2026.11.1`, `TAG=v2026.11.1`).
   3. **Cross-Compile Matrix (`CGO_ENABLED=0`):** Build `cmd/repotier` with `-ldflags "-X main.Version=${VERSION}"` (without `-s -w` so Mach-O `LC_UUID` is preserved on `darwin`) for `darwin/arm64`, `darwin/amd64`, `linux/amd64`, and `linux/arm64`, packaging each binary as `repotier_${GOOS}_${GOARCH}.tar.gz` containing `repotier` at the archive root, and generate `checksums.txt` (`shasum -a 256`).
   4. **Publish Release:** Create tag and GitHub Release via `gh release create "v${VERSION}" dist/repotier_*.tar.gz dist/checksums.txt --title "v${VERSION}" --generate-notes`.

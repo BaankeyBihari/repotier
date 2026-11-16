@@ -1,5 +1,11 @@
 # `repotier` — Local Git Worktree & Branch Manager
 
+[![Build & Release](https://github.com/BaankeyBihari/repotier/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/BaankeyBihari/repotier/actions/workflows/release.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/BaankeyBihari/repotier/badges/coverage.json)](https://github.com/BaankeyBihari/repotier/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/BaankeyBihari/repotier)](https://github.com/BaankeyBihari/repotier/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/BaankeyBihari/repotier)](go.mod)
+[![License: MIT](https://img.shields.io/github/license/BaankeyBihari/repotier)](LICENSE)
+
 `repotier` is a single-binary Go CLI paired with an embedded localhost web dashboard (`127.0.0.1`) for managing local Git repositories, linked worktrees (`git worktree`), branch upstreams, and launching worktrees in local IDEs (`Antigravity IDE`, `VS Code`, `Windsurf / Devin`, `IntelliJ IDEA`, `Sublime Text`).
 
 ## Features
@@ -46,6 +52,8 @@ repotier scan [dir]           # Recursively discover Git repos & worktrees under
 repotier daemon --port 45910  # Run HTTP server in foreground on 127.0.0.1:45910
 repotier shutdown             # Gracefully stop the background daemon
 repotier update               # Self-update from GitHub Releases and restart daemon
+repotier version              # Print installed version
+repotier help                 # Print CLI usage
 ```
 
 ## Configuration & Storage

@@ -151,15 +151,37 @@ func (env *CLIEnv) Run(args []string) int {
 		}
 		return 0
 
+	// @spec CLI-CMD-004
+	case "help", "-h", "--help":
+		if env.Stdout != nil {
+			env.writeUsage(env.Stdout)
+		}
+		return 0
+
+	// @spec CLI-CMD-004
+	case "version", "-v", "--version":
+		if env.Stdout != nil {
+			v := env.Version
+			if v == "" {
+				v = Version
+			}
+			fmt.Fprintf(env.Stdout, "repotier %s\n", v)
+		}
+		return 0
+
 	default:
 		env.printUsage()
 		return 2
 	}
 }
 
+func (env *CLIEnv) writeUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage: repotier [dashboard | daemon [--port <port>] | shutdown | update | scan [dir] | version | help]")
+}
+
 func (env *CLIEnv) printUsage() {
 	if env.Stderr != nil {
-		fmt.Fprintln(env.Stderr, "Usage: repotier [dashboard | daemon [--port <port>] | shutdown | update | scan [dir]]")
+		env.writeUsage(env.Stderr)
 	}
 }
 

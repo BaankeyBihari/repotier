@@ -392,7 +392,7 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("missing .github/workflows/release.yml: %v", err)
 	}
 	wfText := string(wfBytes)
-	for _, want := range []string{"gh release create", "checksums.txt", "repotier_"} {
+	for _, want := range []string{"gh release create", "checksums.txt", "repotier_", "coverage.out", "badges"} {
 		if !strings.Contains(wfText, want) {
 			t.Fatalf(".github/workflows/release.yml missing %q", want)
 		}
@@ -403,8 +403,8 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 		t.Fatalf("expected executable scripts/install.sh, err=%v", err)
 	}
 	readmeBytes, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
-	if err != nil || !strings.Contains(string(readmeBytes), "scripts/install.sh") || !strings.Contains(string(readmeBytes), "curl ") {
-		t.Fatalf("expected README.md to document curl install command for scripts/install.sh: %v", err)
+	if err != nil || !strings.Contains(string(readmeBytes), "scripts/install.sh") || !strings.Contains(string(readmeBytes), "curl ") || !strings.Contains(string(readmeBytes), "release.yml/badge.svg") || !strings.Contains(string(readmeBytes), "coverage.json") {
+		t.Fatalf("expected README.md to document curl install command and build/coverage badges: %v", err)
 	}
 }
 
@@ -467,5 +467,43 @@ func TestCLIScanCommand(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "2 repositories") {
 		t.Fatalf("expected summary count in stdout, got %q", stdout.String())
+	}
+}
+
+// @spec CLI-CMD-004
+func TestCLIHelpAndVersionCommands(t *testing.T) {
+	store := NewStore(t.TempDir(), t.TempDir())
+	var stdout, stderr bytes.Buffer
+	env := &CLIEnv{
+		Store:   store,
+		Stdout:  &stdout,
+		Stderr:  &stderr,
+		Version: "2026.11.99",
+		SpawnDaemon: func(port int) error {
+			t.Fatalf("help/version must not spawn daemon")
+			return nil
+		},
+	}
+
+	for _, arg := range []string{"help", "-h", "--help"} {
+		stdout.Reset()
+		stderr.Reset()
+		if code := env.Run([]string{arg}); code != 0 {
+			t.Fatalf("repotier %s exited %d (stderr=%s)", arg, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "Usage: repotier") {
+			t.Fatalf("repotier %s missing usage on stdout, got %q", arg, stdout.String())
+		}
+	}
+
+	for _, arg := range []string{"version", "-v", "--version"} {
+		stdout.Reset()
+		stderr.Reset()
+		if code := env.Run([]string{arg}); code != 0 {
+			t.Fatalf("repotier %s exited %d (stderr=%s)", arg, code, stderr.String())
+		}
+		if strings.TrimSpace(stdout.String()) != "repotier 2026.11.99" {
+			t.Fatalf("repotier %s = %q; want %q", arg, stdout.String(), "repotier 2026.11.99")
+		}
 	}
 }
