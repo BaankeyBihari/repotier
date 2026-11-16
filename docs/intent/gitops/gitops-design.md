@@ -87,4 +87,4 @@ The `GITOPS` segment encapsulates all interactions with the local `git` CLI (`os
 ## References
 
 - Parent HLD: [high-level-design.md](../../high-level-design.md)
-- Specification: [Spec.md](../../../Spec.md)
+- EARS Specs: [gitops-specs.md](gitops-specs.md)

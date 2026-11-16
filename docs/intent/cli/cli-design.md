@@ -91,7 +91,7 @@ When `repotier daemon [--port <port>]` starts:
 
 | Decision | Chosen | Alternatives Considered | Rationale |
 |---|---|---|---|
-| **CLI Flag & Subcommand Parsing** | Stdlib `os.Args` switch + `flag.NewFlagSet` for `daemon --port` | `github.com/spf13/cobra` (`Spec.md` §8) | Only 4 subcommands and 1 flag exist; stdlib `flag` avoids external CLI dependencies and boilerplate files. |
+| **CLI Flag & Subcommand Parsing** | Stdlib `os.Args` switch + `flag.NewFlagSet` for `daemon --port` | `github.com/spf13/cobra` | Only 4 subcommands and 1 flag exist; stdlib `flag` avoids external CLI dependencies and boilerplate files. |
 | **Listener Bind Before PID/Port Write** | Bind `net.Listen("tcp", "127.0.0.1:<port>")` first, then write `daemon.pid` / `daemon.port` | Write PID/port files before binding socket | Prevents a duplicate `repotier daemon` invocation that fails with `EADDRINUSE` from overwriting or deleting the running daemon's PID and port files. |
 | **Self-Update Implementation** | Stdlib `net/http` GitHub Releases API + `archive/tar` + `compress/gzip` + atomic `os.Rename` | `github.com/creativeprojects/go-selfupdate` | Eliminates ~30 transitive third-party dependencies while satisfying GitHub release check, atomic binary swap, and daemon restart in ~50 lines of standard library code. |
 | **Versioning Scheme & Toolchain (`mise.toml`)** | CalVer `YYYY.MM.N` (3-int tuple comparison, optional `v` prefix stripped) + `mise.toml` (`go = "1.22"`, `build`/`test`/`install` tasks) | SemVer `vX.Y.Z` or lexicographical string comparison | Fits a continuous-release CLI/daemon without arbitrary major/minor bumps; tuple comparison prevents `2026.11.10 < 2026.11.2` lexical bugs in 15 lines of stdlib code. |
@@ -110,4 +110,4 @@ When `repotier daemon [--port <port>]` starts:
 ## References
 
 - Parent HLD: [high-level-design.md](../../high-level-design.md)
-- Specification: [Spec.md](../../../Spec.md)
+- EARS Specs: [cli-specs.md](cli-specs.md)

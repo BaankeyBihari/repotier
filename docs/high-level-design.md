@@ -64,7 +64,7 @@ flowchart LR
 
 | Decision | Chosen Option | Alternatives Considered | Rationale |
 |---|---|---|---|
-| **Codebase & CLI Structure** | Flat single-package Go layout under `cmd/repotier/` using stdlib `flag` and `os.Args` dispatch | Root-level `.go` files; `src/` folder (breaks `go install` binary naming); Multi-package `cmd/` + 5 `internal/*` packages with `spf13/cobra` (`Spec.md` §8) | `cmd/repotier/` keeps the repository root clean, makes `go install .../cmd/repotier@latest` produce a `repotier` binary rather than `src`, and avoids multi-package boilerplate. |
+| **Codebase & CLI Structure** | Flat single-package Go layout under `cmd/repotier/` using stdlib `flag` and `os.Args` dispatch | Root-level `.go` files; `src/` folder (breaks `go install` binary naming); Multi-package `cmd/` + 5 `internal/*` packages with `spf13/cobra` | `cmd/repotier/` keeps the repository root clean, makes `go install .../cmd/repotier@latest` produce a `repotier` binary rather than `src`, and avoids multi-package boilerplate. |
 | **Frontend Delivery** | Single embedded `ui/index.html` using Vanilla JS + CSS via `//go:embed` | External SPA build pipeline (React/Vite) or CDN-loaded frameworks | Eliminates Node/npm build steps and guarantees offline operation on `127.0.0.1`. |
 | **Concurrency & Cache Coordination** | In-process `sync.Mutex` combined with OS file lock (`syscall.Flock`) on `~/.cache/repotier/repos.json` | SQLite database or daemon-only cache writes | Allows the CLI pre-run hook to upsert discovered repositories even before the daemon starts, without risking JSON corruption under concurrent CLI/daemon access. |
 | **Branch & Worktree Deletion Flow** | Two-phase HTTP `409 Conflict` with `requires_force: true` when `git branch -d` fails on unmerged commits | Always running `-D`, or blocking unmerged deletes without inline retry | Preserves Git's native unmerged-commit safety check by default while allowing immediate user confirmation in the UI modal — including when worktree removal succeeded before the branch delete step. |
@@ -80,5 +80,5 @@ flowchart LR
 
 ## References
 
-- Project specification: `Spec.md`
-- LID instructions and arrow navigation: `AGENTS.md`
+- LID instructions and arrow navigation: [AGENTS.md](../AGENTS.md)
+- Contributing & workflow guide: [CONTRIBUTING.md](../CONTRIBUTING.md)

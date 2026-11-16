@@ -83,4 +83,4 @@ The `STORAGE` segment manages all persistent local state on disk: the discovered
 ## References
 
 - Parent HLD: [high-level-design.md](../../high-level-design.md)
-- Specification: [Spec.md](../../../Spec.md)
+- EARS Specs: [storage-specs.md](storage-specs.md)

@@ -132,4 +132,4 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 ## References
 
 - Parent HLD: [high-level-design.md](../../high-level-design.md)
-- Specification: [Spec.md](../../../Spec.md)
+- EARS Specs: [web-specs.md](web-specs.md)
