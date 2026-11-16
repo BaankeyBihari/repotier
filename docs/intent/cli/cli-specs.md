@@ -4,6 +4,7 @@
 
 - [x] **CLI-CMD-001**: When `repotier` is invoked with no subcommand or with the `dashboard` subcommand, the CLI shall execute the pre-run hook and launch the system default browser (`open` on macOS, `xdg-open` on Linux) pointed to `http://127.0.0.1:<port>`, appending `?repo=<url_encoded_canonical_path>` when invoked inside a valid Git repository.
 - [x] **CLI-CMD-002**: If `repotier` is invoked with an unknown subcommand, an unknown flag, or a `daemon --port` value outside `0..65535`, then the CLI shall print usage information to `stderr` and exit with code `2`.
+- [x] **CLI-CMD-003**: When `repotier scan [dir]` is invoked, the CLI shall recursively walk `dir` (defaulting to the current working directory) without starting the daemon or opening a browser, resolve each discovered Git repository or linked worktree to its canonical root via `GITOPS.DiscoverRepoRoot` (skipping `node_modules`, `vendor`, `target`, `dist`, and hidden directories), deduplicate and upsert each canonical root into `~/.cache/repotier/repos.json`, and print the discovered repository paths and count to `stdout`.
 
 ## Pre-Run Hook & Daemon Auto-Start
 
