@@ -397,4 +397,13 @@ func TestCLIBuildAndPreCommitToolingContract(t *testing.T) {
 			t.Fatalf(".github/workflows/release.yml missing %q", want)
 		}
 	}
+
+	installScript := filepath.Join(repoRoot, "scripts", "install.sh")
+	if info, err := os.Stat(installScript); err != nil || info.Mode()&0111 == 0 {
+		t.Fatalf("expected executable scripts/install.sh, err=%v", err)
+	}
+	readmeBytes, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil || !strings.Contains(string(readmeBytes), "scripts/install.sh") || !strings.Contains(string(readmeBytes), "curl ") {
+		t.Fatalf("expected README.md to document curl install command for scripts/install.sh: %v", err)
+	}
 }

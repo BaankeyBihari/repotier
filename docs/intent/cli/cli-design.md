@@ -73,6 +73,7 @@ When `repotier daemon [--port <port>]` starts:
   - `install`: `go install -ldflags "-X main.Version=${VERSION}" ./cmd/repotier`
   - `hooks`: `pre-commit install`
 - **Pre-Commit Hook (`.pre-commit-config.yaml`, `.golangci.yml`, `.markdownlint-cli2.yaml`):** Executes `gofmt`, `go vet`, `golangci-lint run ./cmd/repotier/...`, and `markdownlint-cli2` before commits.
+- **Installer Script (`scripts/install.sh`):** POSIX `sh` script invoked via `curl -fsSL https://raw.githubusercontent.com/BaankeyBihari/repotier/main/scripts/install.sh | sh` (documented in `README.md`). Detects `darwin`/`linux` and `amd64`/`arm64`, downloads `repotier_${OS}_${ARCH}.tar.gz` and `checksums.txt` from `releases/latest/download/`, verifies SHA-256 when `shasum`/`sha256sum` is available, extracts `repotier`, and installs it into `${INSTALL_DIR}` (defaulting to `/usr/local/bin` if writable, otherwise `${HOME}/.local/bin`).
 
 ### GitHub Actions Pull Request, Release & Governance Configs
 
