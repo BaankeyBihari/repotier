@@ -525,6 +525,7 @@
           <thead>
             <tr>
               <th>Workspace Path</th>
+              <th>Remote</th>
               <th>Branch / HEAD</th>
               <th>Role</th>
               <th>Status</th>
@@ -719,10 +720,15 @@
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
   <script>
+    const LOCAL_ANCHOR_KEY = 'local-repo';
     let allRepos = [];
     let activeRepo = "";
     let activeTab = "workspace";
-    let activeRemoteName = "";
+    let originatingWorkspace = "";
+    let initialRepoKey = "";
+    let activeRepoKey = "";
+    let repoTabClones = [];
+    let repoTabRequestSeq = 0;
     let highlightedWorktreePath = "";
     let editors = [];
     let currentDetails = { is_local_only: false, remotes: [], worktrees: [], branches: [], remote_refs: [] };
@@ -810,36 +816,144 @@
       document.getElementById('warningBanner').classList.add('hidden');
     }
 
-    function defaultRemoteName(remotes) {
-      if (!remotes || remotes.length === 0) return '';
-      const orig = remotes.find(r => r.name === 'origin');
-      return orig ? orig.name : remotes[0].name;
+    function remoteRepoKey(r) {
+      if (!r) return '';
+      return (r.web_url || r.repo_slug || r.url || '').trim().replace(/\/+$/, '').toLowerCase();
     }
 
-    function switchTab(tab) {
+    function remoteRepoLabel(r) {
+      if (!r) return '';
+      return (r.repo_slug || r.web_url || r.url || '').trim();
+    }
+
+    function buildAvailableRepos() {
+      const validRepos = allRepos.filter(r => r.exists);
+      const byKey = new Map();
+      for (const ws of validRepos) {
+        const remotes = ws.remotes || [];
+        for (const rem of remotes) {
+          const key = remoteRepoKey(rem);
+          if (!key) continue;
+          let entry = byKey.get(key);
+          if (!entry) {
+            entry = {
+              key,
+              label: remoteRepoLabel(rem),
+              web_url: rem.web_url || '',
+              repo_slug: rem.repo_slug || '',
+              clones: []
+            };
+            byKey.set(key, entry);
+          }
+          let clone = entry.clones.find(c => c.path === ws.path);
+          if (!clone) {
+            clone = { path: ws.path, name: ws.name, remoteNames: [] };
+            entry.clones.push(clone);
+          }
+          if (rem.name && !clone.remoteNames.includes(rem.name)) {
+            clone.remoteNames.push(rem.name);
+          }
+        }
+      }
+      return Array.from(byKey.values());
+    }
+
+    function workspaceRemotes(wsPath) {
+      const ws = allRepos.find(r => r.path === wsPath);
+      if (ws && Array.isArray(ws.remotes) && ws.remotes.length > 0) {
+        return ws.remotes;
+      }
+      if (wsPath === activeRepo && Array.isArray(currentDetails.remotes) && currentDetails.remotes.length > 0) {
+        return currentDetails.remotes;
+      }
+      return ws && Array.isArray(ws.remotes) ? ws.remotes : [];
+    }
+
+    function defaultRepoKeyForWorkspace(wsPath) {
+      const remotes = workspaceRemotes(wsPath);
+      if (!remotes || remotes.length === 0) return LOCAL_ANCHOR_KEY;
+      const orig = remotes.find(r => r.name === 'origin');
+      return remoteRepoKey(orig || remotes[0]) || LOCAL_ANCHOR_KEY;
+    }
+
+    async function switchTab(tab) {
+      if (tab === 'workspace' && activeTab !== 'workspace') {
+        const validRepos = allRepos.filter(r => r.exists);
+        let targetRepo = activeRepo;
+        if (activeRepoKey && initialRepoKey) {
+          if (activeRepoKey === initialRepoKey) {
+            if (originatingWorkspace && validRepos.some(r => r.path === originatingWorkspace)) {
+              targetRepo = originatingWorkspace;
+            }
+          } else if (activeRepoKey !== LOCAL_ANCHOR_KEY) {
+            const entry = buildAvailableRepos().find(r => r.key === activeRepoKey);
+            if (entry && entry.clones.length > 0) {
+              targetRepo = entry.clones[0].path;
+            }
+          }
+        }
+        originatingWorkspace = '';
+        initialRepoKey = '';
+        activeRepoKey = '';
+        activeTab = 'workspace';
+        document.getElementById('tabWorkspace').classList.add('active');
+        document.getElementById('tabRepositories').classList.remove('active');
+        document.getElementById('tabSettings').classList.remove('active');
+        updateEmptyVsWorkspace();
+        if (targetRepo && targetRepo !== activeRepo) {
+          activeRepo = targetRepo;
+          highlightedWorktreePath = '';
+          syncURLRepo(activeRepo);
+          renderTopDropdown();
+          await fetchRepoDetails(activeRepo);
+        } else {
+          renderTopDropdown();
+          renderWorkspaceRemotesAndBanner();
+        }
+        return;
+      }
+
       activeTab = tab;
       document.getElementById('tabWorkspace').classList.toggle('active', tab === 'workspace');
       document.getElementById('tabRepositories').classList.toggle('active', tab === 'repositories');
       document.getElementById('tabSettings').classList.toggle('active', tab === 'settings');
       updateEmptyVsWorkspace();
-      if (tab === 'repositories' && activeRepo) {
-        const remotes = currentDetails.remotes || [];
-        if (!activeRemoteName || !remotes.some(r => r.name === activeRemoteName)) {
-          activeRemoteName = defaultRemoteName(remotes);
+
+      if (tab === 'repositories') {
+        if (!activeRepoKey) {
+          originatingWorkspace = activeRepo;
+          initialRepoKey = defaultRepoKeyForWorkspace(activeRepo);
+          activeRepoKey = initialRepoKey;
         }
         renderTopDropdown();
-        if (!currentDetails.is_local_only && remotes.length > 0) {
-          fetchRemoteItems(activeRepo, activeRemoteName);
-        }
+        await loadRepositoriesTabData();
       } else {
         renderTopDropdown();
       }
     }
 
-    function selectWorkspaceFromRepoTab(wtPath) {
-      highlightedWorktreePath = wtPath;
-      switchTab('workspace');
-      renderWorktrees();
+    async function selectWorkspaceFromRepoTab(repoPath, wtPath) {
+      highlightedWorktreePath = wtPath || '';
+      originatingWorkspace = '';
+      initialRepoKey = '';
+      activeRepoKey = '';
+      const changedRepo = Boolean(repoPath && repoPath !== activeRepo);
+      if (changedRepo) {
+        activeRepo = repoPath;
+        syncURLRepo(activeRepo);
+      }
+      activeTab = 'workspace';
+      document.getElementById('tabWorkspace').classList.add('active');
+      document.getElementById('tabRepositories').classList.remove('active');
+      document.getElementById('tabSettings').classList.remove('active');
+      updateEmptyVsWorkspace();
+      renderTopDropdown();
+      if (changedRepo) {
+        await fetchRepoDetails(activeRepo);
+      } else {
+        renderWorkspaceRemotesAndBanner();
+        renderWorktrees();
+      }
     }
 
     function updateEmptyVsWorkspace() {
@@ -876,9 +990,9 @@
       await Promise.all([fetchHealth(), fetchEditors(), fetchLoggingConfig(), fetchRepos(activeRepo)]);
       if (activeRepo) {
         await fetchRepoDetails(activeRepo);
-        if (activeTab === 'repositories') {
-          await fetchRemoteItems(activeRepo, activeRemoteName);
-        }
+      }
+      if (activeTab === 'repositories') {
+        await loadRepositoriesTabData();
       }
     }
 
@@ -942,31 +1056,51 @@
       sel.innerHTML = '';
 
       if (activeTab === 'repositories') {
-        const remotes = currentDetails.remotes || [];
-        if (!activeRepo || currentDetails.is_local_only || remotes.length === 0) {
+        if (validRepos.length === 0) {
           const opt = document.createElement('option');
-          opt.value = 'local-no-remote';
-          opt.textContent = 'local-no-remote';
-          opt.selected = true;
+          opt.value = '';
+          opt.textContent = 'No active repositories';
           sel.appendChild(opt);
-          sel.disabled = false;
+          sel.disabled = true;
           sel.onchange = null;
           return;
         }
-        if (!activeRemoteName || !remotes.some(r => r.name === activeRemoteName)) {
-          activeRemoteName = defaultRemoteName(remotes);
+        const available = buildAvailableRepos();
+        if (!activeRepoKey || (activeRepoKey !== LOCAL_ANCHOR_KEY && !available.some(r => r.key === activeRepoKey))) {
+          const fallbackKey = defaultRepoKeyForWorkspace(originatingWorkspace || activeRepo);
+          if (fallbackKey !== LOCAL_ANCHOR_KEY && available.some(r => r.key === fallbackKey)) {
+            activeRepoKey = fallbackKey;
+          } else if (available.length > 0 && fallbackKey !== LOCAL_ANCHOR_KEY) {
+            activeRepoKey = available[0].key;
+          } else {
+            activeRepoKey = LOCAL_ANCHOR_KEY;
+          }
+          if (!initialRepoKey) initialRepoKey = activeRepoKey;
         }
-        sel.disabled = false;
-        for (const r of remotes) {
+
+        if (activeRepoKey === LOCAL_ANCHOR_KEY) {
+          const anchor = document.createElement('option');
+          anchor.value = LOCAL_ANCHOR_KEY;
+          anchor.textContent = LOCAL_ANCHOR_KEY;
+          anchor.disabled = true;
+          anchor.selected = true;
+          sel.appendChild(anchor);
+        }
+
+        for (const repo of available) {
           const opt = document.createElement('option');
-          opt.value = r.name;
-          opt.textContent = `${r.name} (${r.repo_slug || r.url})`;
-          if (r.name === activeRemoteName) opt.selected = true;
+          opt.value = repo.key;
+          opt.textContent = repo.label;
+          if (repo.key === activeRepoKey) opt.selected = true;
           sel.appendChild(opt);
         }
+
+        sel.disabled = (available.length === 0 && activeRepoKey === LOCAL_ANCHOR_KEY);
         sel.onchange = async () => {
-          activeRemoteName = sel.value;
-          await fetchRemoteItems(activeRepo, activeRemoteName);
+          if (!sel.value || sel.value === LOCAL_ANCHOR_KEY) return;
+          activeRepoKey = sel.value;
+          renderTopDropdown();
+          await loadRepositoriesTabData();
         };
         return;
       }
@@ -977,6 +1111,7 @@
         opt.textContent = 'No active repositories';
         sel.appendChild(opt);
         sel.disabled = true;
+        sel.onchange = null;
         return;
       }
       sel.disabled = false;
@@ -989,13 +1124,12 @@
       }
       sel.onchange = async () => {
         activeRepo = sel.value;
-        activeRemoteName = '';
+        originatingWorkspace = '';
+        initialRepoKey = '';
+        activeRepoKey = '';
         highlightedWorktreePath = '';
         syncURLRepo(activeRepo);
         await fetchRepoDetails(activeRepo);
-        if (activeTab === 'repositories') {
-          await fetchRemoteItems(activeRepo, '');
-        }
       };
     }
 
@@ -1011,32 +1145,93 @@
       }
       currentDetails = data;
       renderTopDropdown();
-      renderRemotesAndLocalBanners();
+      renderWorkspaceRemotesAndBanner();
       renderWorktrees();
-      renderRepoWorkspaces();
       renderBranches();
     }
 
-    async function fetchRemoteItems(repoPath, remoteName) {
-      if (!repoPath) return;
-      let q = '/api/repo/remote-items?path=' + encodeURIComponent(repoPath);
-      if (remoteName) q += '&remote=' + encodeURIComponent(remoteName);
-      const res = await fetch(q);
-      if (!res.ok) return;
-      currentRemoteItems = await res.json();
-      activeRemoteName = currentRemoteItems.remote || activeRemoteName;
-      renderRemotesAndLocalBanners();
+    async function loadRepositoriesTabData() {
+      const reqSeq = ++repoTabRequestSeq;
+      renderRepositoriesLocalState();
+
+      if (!activeRepoKey || activeRepoKey === LOCAL_ANCHOR_KEY) {
+        const wsPath = originatingWorkspace || activeRepo;
+        let worktrees = [];
+        if (wsPath) {
+          if (wsPath === activeRepo && Array.isArray(currentDetails.worktrees) && currentDetails.worktrees.length > 0) {
+            worktrees = currentDetails.worktrees;
+          } else {
+            const det = await fetch('/api/repo/details?path=' + encodeURIComponent(wsPath))
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null);
+            if (reqSeq !== repoTabRequestSeq) return;
+            if (det && det.exists && Array.isArray(det.worktrees)) {
+              worktrees = det.worktrees;
+            }
+          }
+        }
+        repoTabClones = wsPath ? [{ repoPath: wsPath, remoteNames: [], worktrees }] : [];
+        currentRemoteItems = { is_local_only: true, remote: '', issues: [], prs: [] };
+        renderRepoWorkspaces();
+        return;
+      }
+
+      const entry = buildAvailableRepos().find(r => r.key === activeRepoKey);
+      if (!entry || entry.clones.length === 0) {
+        repoTabClones = [];
+        currentRemoteItems = { is_local_only: false, remote: '', issues: [], prs: [] };
+        renderRepoWorkspaces();
+        renderRepoIssuesAndPRs();
+        return;
+      }
+
+      document.getElementById('repoIssuesBody').innerHTML = '<tr><td colspan="5" style="color:var(--muted);">Loading...</td></tr>';
+      document.getElementById('repoPRsBody').innerHTML = '<tr><td colspan="6" style="color:var(--muted);">Loading...</td></tr>';
+
+      const primaryClone = entry.clones[0];
+      const primaryRemote = primaryClone.remoteNames.includes('origin')
+        ? 'origin'
+        : (primaryClone.remoteNames[0] || '');
+
+      const cloneDetailsPromises = entry.clones.map(clone =>
+        fetch('/api/repo/details?path=' + encodeURIComponent(clone.path))
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      );
+      let itemsQuery = '/api/repo/remote-items?path=' + encodeURIComponent(primaryClone.path);
+      if (primaryRemote) itemsQuery += '&remote=' + encodeURIComponent(primaryRemote);
+      const itemsPromise = fetch(itemsQuery)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+
+      const [cloneDetails, itemsData] = await Promise.all([
+        Promise.all(cloneDetailsPromises),
+        itemsPromise
+      ]);
+      if (reqSeq !== repoTabRequestSeq) return;
+
+      const clones = [];
+      for (let i = 0; i < entry.clones.length; i++) {
+        const det = cloneDetails[i];
+        if (!det || !det.exists) continue;
+        clones.push({
+          repoPath: entry.clones[i].path,
+          remoteNames: entry.clones[i].remoteNames,
+          worktrees: det.worktrees || []
+        });
+      }
+      repoTabClones = clones;
+      currentRemoteItems = itemsData || { is_local_only: false, remote: primaryRemote, issues: [], prs: [] };
+      renderRepositoriesLocalState();
+      renderRepoWorkspaces();
       renderRepoIssuesAndPRs();
     }
 
-    function renderRemotesAndLocalBanners() {
+    function renderWorkspaceRemotesAndBanner() {
       const isLocal = Boolean(currentDetails.is_local_only);
       const remotes = currentDetails.remotes || [];
 
       document.getElementById('workspaceLocalOnlyBanner').classList.toggle('hidden', !isLocal);
-      document.getElementById('repositoriesLocalOnlyBanner').classList.toggle('hidden', !isLocal);
-      document.getElementById('repoIssuesCard').classList.toggle('hidden', isLocal);
-      document.getElementById('repoPRsCard').classList.toggle('hidden', isLocal);
       const fetchBtn = document.getElementById('fetchBtn');
       if (fetchBtn) fetchBtn.disabled = isLocal;
 
@@ -1060,6 +1255,13 @@
       } else {
         wsBar.classList.add('hidden');
       }
+    }
+
+    function renderRepositoriesLocalState() {
+      const isLocalRepoView = (!activeRepoKey || activeRepoKey === LOCAL_ANCHOR_KEY);
+      document.getElementById('repositoriesLocalOnlyBanner').classList.toggle('hidden', !isLocalRepoView);
+      document.getElementById('repoIssuesCard').classList.toggle('hidden', isLocalRepoView);
+      document.getElementById('repoPRsCard').classList.toggle('hidden', isLocalRepoView);
     }
 
     function renderWorktrees() {
@@ -1129,29 +1331,40 @@
     function renderRepoWorkspaces() {
       const tbody = document.getElementById('repoWorkspacesBody');
       tbody.innerHTML = '';
-      for (const wt of (currentDetails.worktrees || [])) {
-        const tr = document.createElement('tr');
-        const branchLabel = wt.detached ? `detached @ ${wt.head}` : wt.branch;
-        const roleBadge = wt.is_main ? '<span class="badge main">Main</span>' : '<span class="badge">Linked</span>';
-        const statusBadge = wt.dirty_count > 0
-          ? `<span class="badge dirty">${wt.dirty_count} dirty</span>`
-          : '<span class="badge clean">Clean</span>';
+      let rowCount = 0;
+      for (const clone of repoTabClones) {
+        const remoteCellHtml = clone.remoteNames && clone.remoteNames.length > 0
+          ? clone.remoteNames.map(n => `<span class="badge ${n === 'origin' ? 'main' : ''}">${escapeHtml(n)}</span>`).join(' ')
+          : '<span style="color:var(--muted);">—</span>';
+        for (const wt of (clone.worktrees || [])) {
+          rowCount++;
+          const tr = document.createElement('tr');
+          const branchLabel = wt.detached ? `detached @ ${wt.head}` : wt.branch;
+          const roleBadge = wt.is_main ? '<span class="badge main">Main</span>' : '<span class="badge">Linked</span>';
+          const statusBadge = wt.dirty_count > 0
+            ? `<span class="badge dirty">${wt.dirty_count} dirty</span>`
+            : '<span class="badge clean">Clean</span>';
 
-        const tdAct = document.createElement('td');
-        const btn = document.createElement('button');
-        btn.className = 'primary';
-        btn.textContent = 'View in Workspace';
-        btn.onclick = () => selectWorkspaceFromRepoTab(wt.path);
-        tdAct.appendChild(btn);
+          const tdAct = document.createElement('td');
+          const btn = document.createElement('button');
+          btn.className = 'primary';
+          btn.textContent = 'View in Workspace';
+          btn.onclick = () => selectWorkspaceFromRepoTab(clone.repoPath, wt.path);
+          tdAct.appendChild(btn);
 
-        tr.innerHTML = `
-          <td class="mono">${escapeHtml(wt.path)}</td>
-          <td><span class="badge">${escapeHtml(branchLabel)}</span></td>
-          <td>${roleBadge}</td>
-          <td>${statusBadge}</td>
-        `;
-        tr.appendChild(tdAct);
-        tbody.appendChild(tr);
+          tr.innerHTML = `
+            <td class="mono">${escapeHtml(wt.path)}</td>
+            <td>${remoteCellHtml}</td>
+            <td><span class="badge">${escapeHtml(branchLabel)}</span></td>
+            <td>${roleBadge}</td>
+            <td>${statusBadge}</td>
+          `;
+          tr.appendChild(tdAct);
+          tbody.appendChild(tr);
+        }
+      }
+      if (rowCount === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);">No active workspaces found.</td></tr>';
       }
     }
 
@@ -1495,6 +1708,11 @@
       }
       showToast(`Removed ${path} from cache`, 'success');
       if (activeRepo === path) activeRepo = '';
+      if (originatingWorkspace === path || activeRepo === '') {
+        originatingWorkspace = '';
+        initialRepoKey = '';
+        activeRepoKey = '';
+      }
       await fetchRepos('');
       if (activeRepo) await fetchRepoDetails(activeRepo);
     }

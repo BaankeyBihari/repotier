@@ -25,7 +25,7 @@ The `STORAGE` segment manages all persistent local state on disk: the discovered
 ```
 
 - **Upsert (`UpsertRepo(path string)`):** Normalizes `path` via `filepath.Clean`, updates `last_seen` (RFC3339 UTC) if `path` exists in `repos`, or appends a new entry if absent.
-- **List (`ListRepos()`):** Acquires the cache lock only while reading `repos.json` into memory (returning an empty slice if file does not exist), releases the lock, enriches each entry with `name: filepath.Base(path)` and `exists: bool` (checked via `GITOPS` repository health verification outside the file lock), and sorts entries by `last_seen` descending (with `path` ascending as a deterministic tie-breaker).
+- **List (`ListRepos()`):** Acquires the cache lock only while reading `repos.json` into memory (returning an empty slice if file does not exist), releases the lock, enriches each entry with `name: filepath.Base(path)`, `exists: bool` (checked via `GITOPS` repository health verification outside the file lock), and (when `exists == true`) its configured Git `remotes` via `GITOPS.ListRemotes` (computed transiently and omitted from `repos.json`), and sorts entries by `last_seen` descending (with `path` ascending as a deterministic tie-breaker).
 - **Remove (`RemoveRepo(path string)`):** Removes the matching `path` entry from `repos.json`.
 - **Prune Missing (`PruneMissingRepos()`):** Evaluates `GITOPS` health of cached paths outside the file lock, then acquires the lock to remove all entries where `exists == false`.
 
