@@ -19,10 +19,11 @@ const DefaultPort = 45910
 var SupportedEditorIDs = []string{"agy", "vscode", "windsurf", "intellij", "subl"}
 
 type CachedRepo struct {
-	Path     string `json:"path"`
-	Name     string `json:"name,omitempty"`
-	Exists   bool   `json:"exists"`
-	LastSeen string `json:"last_seen"`
+	Path     string   `json:"path"`
+	Name     string   `json:"name,omitempty"`
+	Exists   bool     `json:"exists"`
+	LastSeen string   `json:"last_seen"`
+	Remotes  []Remote `json:"remotes,omitempty"`
 }
 
 type RepoCacheFile struct {
@@ -192,6 +193,11 @@ func (s *Store) ListRepos() ([]CachedRepo, error) {
 	for i := range raw {
 		raw[i].Name = filepath.Base(raw[i].Path)
 		raw[i].Exists = IsRepoHealthy(raw[i].Path)
+		if raw[i].Exists {
+			if rems, err := ListRemotes(raw[i].Path); err == nil {
+				raw[i].Remotes = rems
+			}
+		}
 	}
 	sort.Slice(raw, func(i, j int) bool {
 		if raw[i].LastSeen != raw[j].LastSeen {

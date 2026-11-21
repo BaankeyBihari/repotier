@@ -32,7 +32,7 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 |---|---|---|---|
 | `/api/health` | `GET` | — | `{"status":"ok","version":"...","pid":1234,"port":45910}` |
 | `/api/shutdown` | `POST` | — | `202 Accepted` `{"status":"shutting_down"}` (triggers async `Server.Shutdown`) |
-| `/api/repos` | `GET` | — | `{"repos":[{"path":"...","name":"...","exists":true,"last_seen":"..."}]}` |
+| `/api/repos` | `GET` | — | `{"repos":[{"path":"...","name":"...","exists":true,"last_seen":"...","remotes":[...]}]}` |
 | `/api/repos` | `DELETE` | `{"path":"..."}` or `{"prune_missing":true}` | `{"status":"ok"}` |
 | `/api/repo/details` | `GET` | `?path=<url_encoded_path>` | `{"exists":true,"is_local_only":false,"remotes":[...],"worktrees":[...],"branches":[...],"remote_refs":[...]}` |
 | `/api/repo/remote-items` | `GET` | `?path=<url_encoded_path>[&remote=<name>]` | `{"is_local_only":false,"remote":"origin","issues":[...],"prs":[...]}` |
@@ -106,10 +106,13 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
   - When the active repository has configured Git remotes (`is_local_only == false`), renders a **Remotes** bar at the top of the `Workspace` tab showing a badge/link for each remote (`name` + clickable `web_url` opening in a new tab).
   - When the active repository has zero configured Git remotes (`is_local_only == true`), renders a **Local-Only Repository** banner (*"This repository is local-only (no Git remotes configured)"*) at the top of both the `Workspace` and `Repositories` tabs.
 - **Repositories Tab (`Workspaces`, `Issues`, `PRs`):**
-  - Scoped to the active repository. While on the `Repositories` tab, the top navigation dropdown (`#repoSelect`) switches from listing local repositories to listing the active repository's configured remotes (auto-selecting `origin` if defined, otherwise the first configured remote; or `local-no-remote` when `is_local_only == true`). Changing the remote in `#repoSelect` fetches `/api/repo/remote-items` for that remote. Switching back to `Workspace` or `Settings` restores the local repository list in `#repoSelect`.
-  - **Workspaces Group:** Lists all worktrees belonging to the repository (`path`, `branch`, `Main`/`Linked` badge, dirty count). Selecting/clicking any workspace switches the view back to the **`Workspace`** tab and highlights that worktree row.
-  - **Issues Group (Read-Only):** Hidden when `is_local_only == true`; otherwise lists open issues from `/api/repo/remote-items` (`#number`, `title`, `state`, `author`) with an external link (`target="_blank"`) to open the issue page.
-  - **PRs Group (Read-Only):** Hidden when `is_local_only == true`; otherwise lists open pull requests from `/api/repo/remote-items` (`#number`, `title`, `head → base`, `draft`/`open` badge, `author`) with an external link (`target="_blank"`) to open the PR page.
+  - While on the `Repositories` tab, `#repoSelect` presents a global dropdown of all unique remote repositories discovered across all active (`exists == true`) cached workspaces, deduplicated by canonical remote identity (`web_url` / `repo_slug`, or raw URL fallback) and labeled by canonical repository slug/URL without any per-clone remote-alias prefix (e.g. `origin`).
+  - Navigating from `Workspace` → `Repositories` records the originating workspace (`originatingWorkspace`) and defaults `#repoSelect` to: (1) the repository matching `origin` on the originating workspace if present, (2) else its first configured remote's repository, (3) else a disabled, initially selected `local-repo` anchor option alongside all available remote repositories (displaying the local-only banner, the originating workspace's worktrees, and hiding `Issues`/`PRs`).
+  - Selecting any remote repository in `#repoSelect` (including switching off the disabled `local-repo` anchor) takes over the remote flow: hides the local-only banner, loads all matching local clones and their worktrees into the **Workspaces** table, and fetches read-only **Issues** and **Pull Requests**.
+  - **Workspaces Group:** Lists all worktrees across all local clones associated with the selected repository (`Workspace Path`, `Remote` — showing the remote name(s) that clone uses for the repository or `—` when local-only — `Branch / HEAD`, `Role`, `Status`, and **View in Workspace**). Clicking **View in Workspace** jumps to that specific clone workspace and highlights the clicked worktree.
+  - **Returning to Workspace (`Repositories` → `Workspace`):** If the selected repository was not changed (including remaining on the disabled `local-repo` anchor), switches back to the exact originating workspace; if the selected repository was changed, switches to the first workspace in the list of clones for the selected repository.
+  - **Issues Group (Read-Only):** Hidden when the disabled `local-repo` anchor is active; otherwise lists open issues from `/api/repo/remote-items` (`#number`, `title`, `state`, `author`) with an external link (`target="_blank"`) to open the issue page.
+  - **PRs Group (Read-Only):** Hidden when the disabled `local-repo` anchor is active; otherwise lists open pull requests from `/api/repo/remote-items` (`#number`, `title`, `head → base`, `draft`/`open` badge, `author`) with an external link (`target="_blank"`) to open the PR page.
 - **Worktree Removal Modal:**
   - Hidden/disabled on primary worktree (`is_main: true`).
   - Checkboxes:
@@ -139,6 +142,7 @@ All non-`2xx` and non-`409` error responses return a standard JSON error envelop
 | **Frontend Packaging** | Single `ui/index.html` embedded via `//go:embed` with Vanilla JS | Separate JS/CSS build step or external CDN scripts | Zero build tooling, instant startup, works completely offline. |
 | **Separate `force_worktree` vs. `force` Flags on `DELETE /api/worktrees`** | Accept both `force_worktree` (for `git worktree remove --force`) and `force` (for `git branch -D`) | Single overloaded `force` boolean | The UI modal has independent checkboxes for forcing a dirty worktree removal (`--force`) and forcing an unmerged branch deletion (`-D`). |
 | **Standard Error Envelope** | `{"error":"...","git_error":"..."}` across all non-2xx/non-409 responses | Plain text `http.Error` strings | Gives the frontend consistent structured error messages and optional raw `git` stderr for modals and banners. |
+| **Global Canonical Repository Selector** | Aggregate unique remote repositories across all active cached workspaces with canonical labels, plus a disabled `local-repo` arrival anchor when coming from a local-only workspace | Lock `#repoSelect` to remotes of the single active workspace | Enables seamless cross-clone repository browsing while preserving local-only navigation state and smart return-to-workspace resolution. |
 
 ## Open Questions & Future Decisions
 

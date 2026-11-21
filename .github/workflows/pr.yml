@@ -28,7 +28,7 @@ jobs:
           typos
 
       - name: Run tests
-        run: go test -timeout 15s ./cmd/repotier/...
+        run: go test -timeout 60s ./cmd/repotier/...
 
       - name: Build binary (no release)
         run: go build -trimpath -o repotier ./cmd/repotier

@@ -102,6 +102,26 @@ func TestWebReposDetailsAndUpstreamEndpoints(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /api/repos = %d", rec.Code)
 	}
+	var reposPayload struct {
+		Repos []CachedRepo `json:"repos"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &reposPayload); err != nil || len(reposPayload.Repos) != 2 {
+		t.Fatalf("unexpected GET /api/repos payload: %s (err=%v)", rec.Body.String(), err)
+	}
+	var foundValid bool
+	for _, r := range reposPayload.Repos {
+		if r.Path == repo {
+			foundValid = true
+			if !r.Exists || len(r.Remotes) != 1 || r.Remotes[0].Name != "origin" || r.Remotes[0].URL != bareRemote {
+				t.Fatalf("expected valid cached repo with origin remote %q, got %+v", bareRemote, r)
+			}
+		} else if r.Exists || len(r.Remotes) != 0 {
+			t.Fatalf("expected missing cached repo with empty remotes, got %+v", r)
+		}
+	}
+	if !foundValid {
+		t.Fatalf("valid repo %q missing from GET /api/repos payload: %+v", repo, reposPayload.Repos)
+	}
 
 	// DELETE /api/repos prune_missing
 	recPrune := httptest.NewRecorder()
@@ -327,7 +347,11 @@ func TestWebEmbeddedUIDashboardContract(t *testing.T) {
 		"history.replaceState",
 		"Repositories",
 		"This repository is local-only (no Git remotes configured)",
-		"local-no-remote",
+		"local-repo",
+		"buildAvailableRepos",
+		"originatingWorkspace",
+		"<th>Remote</th>",
+		"selectWorkspaceFromRepoTab",
 		"/api/repo/remote-items",
 		"Pull Requests",
 		"Issues",

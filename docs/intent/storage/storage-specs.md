@@ -3,7 +3,7 @@
 ## Repository Cache (`~/.cache/repotier/repos.json`)
 
 - [x] **STORAGE-CACHE-001**: When `UpsertRepo(path)` is called for `~/.cache/repotier/repos.json`, the storage layer shall normalize `path` with `filepath.Clean`, update `last_seen` to the current UTC RFC3339 timestamp if `path` is already present, or append a new entry if absent.
-- [x] **STORAGE-CACHE-002**: When `ListRepos()` is called, the storage layer shall read `~/.cache/repotier/repos.json` (returning an empty slice if the file does not exist), release the file lock before invoking `GITOPS` repository health checks to populate `name` (`filepath.Base(path)`) and `exists`, and return the entries sorted by `last_seen` descending with `path` ascending as a tie-breaker.
+- [x] **STORAGE-CACHE-002**: When `ListRepos()` is called, the storage layer shall read `~/.cache/repotier/repos.json` (returning an empty slice if the file does not exist), release the file lock before invoking `GITOPS` repository health and remote inspection to populate `name` (`filepath.Base(path)`), `exists`, and (when `exists == true`) transient `remotes`, and return the entries sorted by `last_seen` descending with `path` ascending as a tie-breaker.
 - [x] **STORAGE-CACHE-003**: When `RemoveRepo(path)` is called, the storage layer shall delete the matching `path` entry from `~/.cache/repotier/repos.json`.
 - [x] **STORAGE-CACHE-004**: When `PruneMissingRepos()` is called, the storage layer shall evaluate `GITOPS` repository health outside the file lock and then acquire the lock to remove all entries from `~/.cache/repotier/repos.json` where `exists == false`.
 

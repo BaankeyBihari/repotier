@@ -12,10 +12,16 @@ import (
 func TestStorageRepoCacheCRUDAndPrune(t *testing.T) {
 	store := NewStore(t.TempDir(), t.TempDir())
 	validRepo := initTestGitRepo(t)
+	mustGit(t, validRepo, "remote", "add", "origin", "https://github.com/example/service-a.git")
+	localOnlyRepo := initTestGitRepo(t)
 	missingRepo := filepath.Join(t.TempDir(), "deleted-repo")
 
 	if err := store.UpsertRepo(missingRepo); err != nil {
 		t.Fatalf("UpsertRepo(missing) failed: %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
+	if err := store.UpsertRepo(localOnlyRepo); err != nil {
+		t.Fatalf("UpsertRepo(localOnly) failed: %v", err)
 	}
 	time.Sleep(10 * time.Millisecond)
 	if err := store.UpsertRepo(validRepo); err != nil {
@@ -26,27 +32,36 @@ func TestStorageRepoCacheCRUDAndPrune(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRepos failed: %v", err)
 	}
-	if len(repos) != 2 {
-		t.Fatalf("expected 2 cached repos, got %d", len(repos))
+	if len(repos) != 3 {
+		t.Fatalf("expected 3 cached repos, got %d", len(repos))
 	}
-	// Sorted by last_seen descending -> validRepo first
+	// Sorted by last_seen descending -> validRepo first, then localOnlyRepo, then missingRepo
 	if repos[0].Path != validRepo || !repos[0].Exists || repos[0].Name != filepath.Base(validRepo) {
 		t.Fatalf("unexpected first repo: %+v", repos[0])
 	}
-	if repos[1].Path != missingRepo || repos[1].Exists {
-		t.Fatalf("unexpected second repo: %+v", repos[1])
+	if len(repos[0].Remotes) != 1 || repos[0].Remotes[0].Name != "origin" || repos[0].Remotes[0].RepoSlug != "example/service-a" {
+		t.Fatalf("expected transient remotes populated for validRepo, got %+v", repos[0].Remotes)
+	}
+	if repos[1].Path != localOnlyRepo || !repos[1].Exists || len(repos[1].Remotes) != 0 {
+		t.Fatalf("unexpected local-only repo: %+v", repos[1])
+	}
+	if repos[2].Path != missingRepo || repos[2].Exists || len(repos[2].Remotes) != 0 {
+		t.Fatalf("unexpected missing repo: %+v", repos[2])
 	}
 
 	if err := store.PruneMissingRepos(); err != nil {
 		t.Fatalf("PruneMissingRepos failed: %v", err)
 	}
 	afterPrune, err := store.ListRepos()
-	if err != nil || len(afterPrune) != 1 || afterPrune[0].Path != validRepo {
-		t.Fatalf("expected only validRepo after prune, got %+v (err=%v)", afterPrune, err)
+	if err != nil || len(afterPrune) != 2 || afterPrune[0].Path != validRepo || afterPrune[1].Path != localOnlyRepo {
+		t.Fatalf("expected validRepo and localOnlyRepo after prune, got %+v (err=%v)", afterPrune, err)
 	}
 
 	if err := store.RemoveRepo(validRepo); err != nil {
-		t.Fatalf("RemoveRepo failed: %v", err)
+		t.Fatalf("RemoveRepo(validRepo) failed: %v", err)
+	}
+	if err := store.RemoveRepo(localOnlyRepo); err != nil {
+		t.Fatalf("RemoveRepo(localOnlyRepo) failed: %v", err)
 	}
 	afterRemove, err := store.ListRepos()
 	if err != nil || len(afterRemove) != 0 {

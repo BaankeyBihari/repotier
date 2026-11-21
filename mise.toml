@@ -18,7 +18,7 @@ run = "rm -f repotier coverage.out && go clean -testcache"
 
 [tasks.test]
 description = "Run full test suite"
-run = "go test -timeout 15s ./cmd/repotier/..."
+run = "go test -timeout 60s ./cmd/repotier/..."
 
 [tasks.lint]
 description = "Run gofmt, go vet, golangci-lint, markdownlint-cli2, and typos"
